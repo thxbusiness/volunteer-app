@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>時間選択</title>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+<style>
+body{
+font-family:sans-serif;
+margin:20px;
+}
+
+#approve{
+margin-top:20px;
+padding:10px;
+font-size:16px;
+}
+
+input{
+padding:8px;
+margin:5px 0;
+width:250px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>手伝い可能時間を選択してください</h2>
+
+<div>
+店舗名（必須）<br>
+<input id="restaurantName" placeholder="例：居酒屋たかぎ">
+<br>
+メール（任意）<br>
+<input id="restaurantEmail" placeholder="example@email.com">
+</div>
+
+<div id="calendar"></div>
+
+<div>
+<h3>提供する食事（必須）</h3>
+<label>
+<input type="checkbox" id="meal" onchange="checkApprove()"> まかない提供
+</label>
+</div>
+
+<button id="approve" disabled onclick="approve()">承認する</button>
+<button id="cancel" onclick="cancelBooking()">キャンセル</button>
+
+<script>
+const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+
+const params = new URLSearchParams(location.search);
+const VOLUNTEER_ID = params.get("vid");
+
+let selectedEvent = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+
+let calendarEl = document.getElementById('calendar');
+
+let calendar = new FullCalendar.Calendar(calendarEl, {
+
+initialView: 'timeGridWeek',
+slotDuration: '01:00:00',
+allDaySlot: false,
+height: "auto",
+
+eventClick: function(info){
+
+selectedEvent = info.event;
+
+/* 予約済みクリック */
+if(info.event.extendedProps.booked){
+
+info.event.setProp("color","#dc3545");
+
+checkApprove();
+
+alert("予約を取り消す場合にはキャンセルボタンを押してください");
+
+return;
+}
+
+/* 通常選択 */
+calendar.getEvents().forEach(e=>{
+if(!e.extendedProps.booked){
+e.setProp('color','#3788d8');
+}
+});
+
+info.event.setProp('color','#28a745');
+
+checkApprove();
+}
+});
+
+/* DB読み込み */
+fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`,{
+headers:{
+"apikey":API_KEY,
+"Authorization":`Bearer ${API_KEY}`
+}
+})
+.then(res=>res.json())
+.then(data=>{
+
+data.forEach(item=>{
+
+calendar.addEvent({
+start:item.start_time,
+end:item.end_time,
+title: item.booked 
+? "予約済み - " + (item.restaurant_name || "")
+: "選択可能",
+color: item.booked ? "#999" : "#3788d8",
+extendedProps:{
+id:item.id,
+booked:item.booked,
+restaurant_name:item.restaurant_name
+}
+});
+
+});
+
+});
+
+calendar.render();
+
+});
+
+function checkApprove(){
+const meal=document.getElementById("meal").checked;
+const name=document.getElementById("restaurantName").value;
+document.getElementById("approve").disabled=!(meal && selectedEvent && name);
+}
+
+async function approve() {
+    const name = document.getElementById("restaurantName").value;
+    const email = document.getElementById("restaurantEmail").value;
+
+    if (!selectedEvent) {
+        alert("カレンダーから時間を選択してください。");
+        return;
+    }
+    if (!name) {
+        alert("店舗名を入力してください。");
+        return;
+    }
+
+    // 1. データベース(Supabase)の情報を更新する
+    await fetch(
+        `${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedEvent.extendedProps.id}`,
+        {
+            method: "PATCH",
+            headers: {
+                "apikey": API_KEY,
+                "Authorization": `Bearer ${API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                booked: true,
+                restaurant_name: name,
+                restaurant_email: email
+            })
+        }
+    );
+
+    // 2. ★メール送信処理（Make.com 経由に変更）
+    try {
+        // あなたの Make.com の Webhook URL に書き換えてください
+        const webhookUrl = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z"; 
+
+        await fetch(webhookUrl, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                type: "契約成立通知",
+                restaurant_name: name,
+                restaurant_email: email,
+                start_time: selectedEvent.start.toLocaleString(),
+                volunteer_id: VOLUNTEER_ID
+            })
+        });
+        console.log("Make.comへデータを送信しました");
+    } catch (err) {
+        console.error("送信エラー:", err);
+    }
+
+    // 3. 画面上の見た目を更新
+    selectedEvent.setProp("color", "#999");
+    selectedEvent.setProp("title", "予約済み - " + name);
+    selectedEvent.setExtendedProp("booked", true);
+
+    alert("すべての工程が完了しました！\nデータベース保存 ＆ メール送信依頼を出しました。");
+}
+
+async function cancelBooking(){
+
+if(!selectedEvent){
+alert("時間未選択");
+return;
+}
+
+/* DB更新 */
+await fetch(
+`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedEvent.extendedProps.id}`,
+{
+method:"PATCH",
+headers:{
+"apikey":API_KEY,
+"Authorization":`Bearer ${API_KEY}`,
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+booked:false,
+restaurant_name:null,
+restaurant_email:null
+})
+});
+
+/* UI戻す */
+selectedEvent.setProp("color","#3788d8");
+selectedEvent.setProp("title","選択可能");
+selectedEvent.setExtendedProp("booked",false);
+
+alert("キャンセルしました");
+
+}
+</script>
+
+</body>
+</html>

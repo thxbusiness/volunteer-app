@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>対応可能時間登録</title>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+<style>
+body {
+font-family: sans-serif;
+margin: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>対応可能時間をクリックまたはドラッグしてください</h2>
+<div id="calendar"></div>
+
+<script>
+const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+
+const params = new URLSearchParams(location.search);
+const VOLUNTEER_ID = params.get("vid");
+
+if(!VOLUNTEER_ID){
+alert("URLにvidがありません");
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+
+let calendarEl = document.getElementById('calendar');
+
+let calendar = new FullCalendar.Calendar(calendarEl, {
+
+initialView: 'timeGridWeek',
+slotDuration: '01:00:00',
+selectable: true,
+selectMirror: true,
+editable: true,
+eventDurationEditable: true,
+
+eventAllow: function(dropInfo, draggedEvent) {
+return !draggedEvent.extendedProps.booked;
+},
+
+select: async function(info) {
+
+const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+method: "POST",
+headers: {
+"apikey": API_KEY,
+"Authorization": `Bearer ${API_KEY}`,
+"Content-Type": "application/json",
+"Prefer": "return=representation"
+},
+body: JSON.stringify({
+volunteer_id: VOLUNTEER_ID,
+start_time: info.startStr,
+end_time: info.endStr,
+booked: false
+})
+});
+
+const data = await res.json();
+const record = data[0];
+
+calendar.addEvent({
+start: record.start_time,
+end: record.end_time,
+title: "対応可能",
+color:"#3788d8",
+extendedProps: { 
+id: record.id,
+booked: false
+}
+});
+
+},
+
+eventClick: async function(info) {
+
+if(info.event.extendedProps.booked){
+alert("予約済みのため削除できません");
+return;
+}
+
+if(confirm("削除しますか？")){
+
+const id = info.event.extendedProps.id;
+
+await fetch(
+`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}&volunteer_id=eq.${VOLUNTEER_ID}`,
+{
+method: "DELETE",
+headers: {
+"apikey": API_KEY,
+"Authorization": `Bearer ${API_KEY}`
+}
+});
+
+info.event.remove();
+}
+
+}
+
+});
+
+/* DBから読み込み */
+fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+headers: {
+"apikey": API_KEY,
+"Authorization": `Bearer ${API_KEY}`
+}
+})
+.then(res => res.json())
+.then(data => {
+
+data.forEach(item => {
+
+calendar.addEvent({
+start: item.start_time,
+end: item.end_time,
+title: item.booked ? "予約済み" : "対応可能",
+color: item.booked ? "#999" : "#3788d8",
+extendedProps: { 
+id:item.id,
+booked: item.booked 
+}
+});
+
+});
+
+});
+
+calendar.render();
+
+});
+</script>
+
+</body>
+</html>
