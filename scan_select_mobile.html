@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>店舗承認 - スマホ</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 15px; background-color: #f0f2f5; }
+        .container { width: 100%; max-width: 480px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); box-sizing: border-box; }
+        h2 { text-align: center; color: #1a73e8; }
+        .id-badge { background: #e8f0fe; color: #1967d2; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 20px; }
+        label { display: block; margin-top: 15px; font-weight: bold; }
+        select, input { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        .btn-main { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; margin-top: 25px; cursor: pointer; }
+        
+        /* ポップアップ設定 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 100; }
+        .modal-box { background: white; width: 85%; padding: 20px; border-radius: 12px; text-align: center; }
+        .confirm-data { background: #f8f9fa; padding: 10px; border-radius: 8px; text-align: left; margin: 15px 0; }
+        .btn-yes { background: #34a853; color: white; padding: 12px 25px; border: none; border-radius: 6px; font-weight: bold; margin: 5px; }
+        .btn-no { background: #dadce0; color: #3c4043; padding: 12px 25px; border: none; border-radius: 6px; margin: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🤝 店舗承認</h2>
+    <div class="id-badge">ボランティアID: <span id="displayVid">--</span></div>
+
+    <label>店舗を選択</label>
+    <select id="storeName">
+        <option value="">選択してください</option>
+        <option value="サンプルカフェ A店">サンプルカフェ A店</option>
+        <option value="レストラン B店">レストラン B店</option>
+    </select>
+
+    <label>メールアドレス</label>
+    <input type="email" id="storeEmail" placeholder="info@example.com">
+
+    <button class="btn-main" onclick="openModal()">予約を登録する</button>
+</div>
+
+<div id="confirmModal" class="modal">
+    <div class="modal-box">
+        <h3>内容の確認</h3>
+        <p>以下の内容で承認しますか？</p>
+        <div class="confirm-data">
+            <div><strong>店舗:</strong> <span id="confStore"></span></div>
+            <div><strong>メール:</strong> <span id="confEmail"></span></div>
+        </div>
+        <button class="btn-no" onclick="closeModal()">戻る</button>
+        <button class="btn-yes" onclick="submitApprove()">承認する</button>
+    </div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const vid = urlParams.get('vid') || '未設定';
+    document.getElementById('displayVid').innerText = vid;
+
+    function openModal() {
+        const name = document.getElementById("storeName").value;
+        const email = document.getElementById("storeEmail").value;
+        if(!name || !email) return alert("入力してください");
+        document.getElementById("confStore").innerText = name;
+        document.getElementById("confEmail").innerText = email;
+        document.getElementById("confirmModal").style.display = "flex";
+    }
+
+    function closeModal() { document.getElementById("confirmModal").style.display = "none"; }
+
+    async function submitApprove() {
+        const storeName = document.getElementById("storeName").value;
+        const storeEmail = document.getElementById("storeEmail").value;
+        const passCode = Math.floor(1000 + Math.random() * 9000).toString(); // パスコード生成
+
+        const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+        const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${vid}&booked=eq.false`, {
+                method: "PATCH",
+                headers: {
+                    "apikey": API_KEY,
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    booked: true,
+                    restaurant_name: storeName,
+                    restaurant_email: storeEmail,
+                    cancel_code: passCode
+                })
+            });
+
+            if (res.ok) {
+                alert("承認完了！パスコードは " + passCode + " です。メールを確認してください。");
+                location.reload();
+            } else {
+                alert("更新失敗。既に予約済みかもしれません。");
+            }
+        } catch (e) { alert("エラーが発生しました"); }
+    }
+</script>
+</body>
+</html>
