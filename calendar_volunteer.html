@@ -106,33 +106,38 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // DBから読み込み
-    function loadEvents() {
-        fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-            headers: {
-                "apikey": API_KEY,
-                "Authorization": `Bearer ${API_KEY}`
-            }
-        })
-        .then(res => res.json())
-        .then(data => {
-            calendar.removeAllEvents();
-            data.forEach(item => {
-                calendar.addEvent({
+// DBから読み込み
+function loadEvents() {
+    fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        headers: {
+            "apikey": API_KEY,
+            "Authorization": `Bearer ${API_KEY}`
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        calendar.removeAllEvents();
+        data.forEach(item => {
+            // ★ここを修正：ISO形式の末尾にZがついていたら削除し、
+            // ブラウザが勝手に時差計算するのを防ぐ
+            const start = item.start_time.replace('Z', '').replace('+00', '');
+            const end = item.end_time.replace('Z', '').replace('+00', '');
+
+            calendar.addEvent({
+                id: item.id,
+                start: start,
+                end: end,
+                title: item.booked ? "予約済み" : "対応可能",
+                color: item.booked ? "#999" : "#3788d8",
+                extendedProps: { 
                     id: item.id,
-                    start: item.start_time,
-                    end: item.end_time,
-                    title: item.booked ? "予約済み" : "対応可能",
-                    color: item.booked ? "#999" : "#3788d8",
-                    extendedProps: { 
-                        id: item.id,
-                        booked: item.booked 
-                    }
-                });
+                    booked: item.booked 
+                }
             });
-            calendar.render();
         });
-    }
+        calendar.render();
+    });
+}
 
     loadEvents();
     calendar.render();
