@@ -33,7 +33,17 @@
 <div id="popup">
     <h3 id="pop-date" style="margin:0;">日付</h3>
     <p id="pop-time" style="color:#666; font-size:1.2rem; margin:10px 0 20px;">時間</p>
-    <button class="btn-next" onclick="goToNext()">この枠を承認・予約する</button>
+    
+    <div id="section-reserve">
+        <button class="btn-next" onclick="goToNext()">この枠を承認・予約する</button>
+    </div>
+
+    <div id="section-cancel" style="display:none; border-top:1px solid #eee; pt-15px;">
+        <p style="font-size:0.9rem; color:#e74c3c;">予約をキャンセルするにはコードを入力</p>
+        <input type="text" id="cancel-input" placeholder="4桁のコード" maxlength="4" 
+               style="width:80%; padding:10px; font-size:1.2rem; text-align:center; margin-bottom:10px;">
+        <button class="btn-next" style="background:#e74c3c;" onclick="processCancel()">予約を取り消す</button>
+    </div>
 </div>
 
 <script>
@@ -58,32 +68,43 @@ document.addEventListener('DOMContentLoaded', function() {
             center: 'title',
             right: ''
         },
-        // 枠をクリックした時の処理
+// 枠をクリックした時の処理
         eventClick: function(info) {
-            if(info.event.extendedProps.booked) return; // 予約済は無視
-            
             selectedId = info.event.id;
+            const isBooked = info.event.extendedProps.booked;
+            
+            // ポップアップに日時を表示
             document.getElementById('pop-date').innerText = info.event.start.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
             document.getElementById('pop-time').innerText = info.event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " 〜";
             
+            // 表示の切り替え（予約済みならキャンセル画面、空きなら承認画面）
+            if (isBooked) {
+                document.getElementById('section-reserve').style.display = 'none';
+                document.getElementById('section-cancel').style.display = 'block';
+                document.getElementById('cancel-input').value = ""; // 入力欄をクリア
+            } else {
+                document.getElementById('section-reserve').style.display = 'block';
+                document.getElementById('section-cancel').style.display = 'none';
+            }
+
+            // ポップアップを表示
             document.getElementById('overlay').style.display = 'block';
             document.getElementById('popup').style.display = 'block';
         }
     });
 
-    // Supabaseからデータを取得
+    // --- ここから下はカレンダーの外側の関数です ---
+
+    // 読み込み関数（前回修正したものをそのまま使用）
     async function loadEvents() {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
         const data = await res.json();
-        
         calendar.removeAllEvents();
         data.forEach(item => {
-            // 時差情報の「Z」や「+00:00」を消去して、カレンダーが「そのままの時間」で表示するように補正
             const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
             const cleanEnd = item.end_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-
             calendar.addEvent({
                 id: item.id,
                 start: cleanStart,
@@ -100,13 +121,56 @@ document.addEventListener('DOMContentLoaded', function() {
     calendar.render();
 });
 
+// ポップアップを閉じる
 function closePopup() {
     document.getElementById('overlay').style.display = 'none';
     document.getElementById('popup').style.display = 'none';
 }
 
+// 承認画面へ移動
 function goToNext() {
     location.href = `scan_select_mobile.html?vid=${VOLUNTEER_ID}&slot_id=${selectedId}`;
+}
+
+// キャンセル処理（新しく追加）
+async function processCancel() {
+    const inputCode = document.getElementById('cancel-input').value;
+    if (!inputCode) return alert("キャンセルコードを入力してください");
+
+    // 1. コードの照合
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedId}`, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+    });
+    const data = await res.json();
+    const correctCode = data[0].cancel_code; //
+
+    if (inputCode !== correctCode) {
+        alert("キャンセルコードが一致しません");
+        return;
+    }
+
+    // 2. 予約の取り消し
+    if (confirm("本当に予約をキャンセルしますカ？")) {
+        const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedId}`, {
+            method: "PATCH",
+            headers: {
+                "apikey": API_KEY,
+                "Authorization": `Bearer ${API_KEY}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                booked: false,
+                restaurant_name: null,
+                restaurant_email: null,
+                cancel_code: null
+            })
+        });
+
+        if (updateRes.ok) {
+            alert("キャンセルが完了しました");
+            location.reload(); 
+        }
+    }
 }
 </script>
 </body>
