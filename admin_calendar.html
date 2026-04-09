@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>予約選択カレンダー（週表示）</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
+        .header { background: #fff; padding: 15px; text-align: center; border-bottom: 1px solid #ddd; }
+        #calendar { background: #fff; padding: 10px; height: 85vh; }
+        
+        /* ポップアップのスタイル */
+        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 99; }
+        #popup { 
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 85%; max-width: 400px; background: white; padding: 25px; border-radius: 15px; 
+            z-index: 100; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+        }
+        .btn-next { 
+            background: #007bff; color: white; border: none; padding: 15px 30px; 
+            border-radius: 30px; font-size: 1.1rem; font-weight: bold; cursor: pointer; 
+            width: 100%; margin-top: 15px; 
+        }
+    </style>
+</head>
+<body>
+
+<div class="header"><h2>予約枠を選択（週表示）</h2></div>
+<div id="calendar"></div>
+
+<div id="overlay" onclick="closePopup()"></div>
+<div id="popup">
+    <h3 id="pop-date" style="margin:0;">日付</h3>
+    <p id="pop-time" style="color:#666; font-size:1.2rem; margin:10px 0 20px;">時間</p>
+    <button class="btn-next" onclick="goToNext()">この枠を承認・予約する</button>
+</div>
+
+<script>
+// 設定情報
+const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+
+// URLからボランティアIDを取得
+const params = new URLSearchParams(location.search);
+const VOLUNTEER_ID = params.get("vid");
+
+let selectedId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek', // ★週表示に固定
+        locale: 'ja',
+        allDaySlot: false,
+        slotDuration: '01:00:00',
+        headerToolbar: {
+            left: 'prev,next',
+            center: 'title',
+            right: '' // ★切り替えボタンを消して週表示のみにする
+        },
+        // 枠をクリックした時の処理
+        eventClick: function(info) {
+            if(info.event.extendedProps.booked) return; // 予約済は無視
+            
+            selectedId = info.event.id;
+            // ポップアップに日時を表示
+            document.getElementById('pop-date').innerText = info.event.start.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+            document.getElementById('pop-time').innerText = info.event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " 〜";
+            
+            // ポップアップを表示
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('popup').style.display = 'block';
+        }
+    });
+
+    // Supabaseからデータを取得
+    fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+    })
+    .then(res => res.json())
+    .then(data => {
+        data.forEach(item => {
+            calendar.addEvent({
+                id: item.id,
+                start: item.start_time,
+                end: item.end_time,
+                title: item.booked ? "予約済" : "空き",
+                color: item.booked ? "#bdc3c7" : "#3498db",
+                extendedProps: { booked: item.booked }
+            });
+        });
+        calendar.render();
+    });
+});
+
+function closePopup() {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('popup').style.display = 'none';
+}
+
+function goToNext() {
+    // 2枚目の「承認画面」へ、ボランティアIDと枠IDを渡して移動
+    location.href = `scan_select_mobile.html?vid=${VOLUNTEER_ID}&slot_id=${selectedId}`;
+}
+</script>
+</body>
+</html>
