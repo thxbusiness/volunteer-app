@@ -51,6 +51,10 @@ return !draggedEvent.extendedProps.booked;
 
 select: async function(info) {
 
+ // 念のためISO形式を保証
+    const startTime = info.start.toISOString();
+    const endTime = info.end.toISOString();
+
 const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
 method: "POST",
 headers: {
