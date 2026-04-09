@@ -52,8 +52,8 @@ return !draggedEvent.extendedProps.booked;
 select: async function(info) {
 
  // 念のためISO形式を保証
-    const startTime = info.start.toISOString();
-    const endTime = info.end.toISOString();
+const startTime = info.start.toISOString();
+const endTime = info.end.toISOString();
 
 const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
 method: "POST",
@@ -64,14 +64,16 @@ headers: {
 "Prefer": "return=representation"
 },
 body: JSON.stringify({
-volunteer_id: VOLUNTEER_ID,
-start_time: info.startStr,
-end_time: info.endStr,
+volunteer_id: VOLUNTEER_ID, // ここを VOLUNTEER_ID に統一
+start_time: startTime,      // ISO形式で送る
+end_time: endTime,          // ISO形式で送る
 booked: false
 })
 });
 
 const data = await res.json();
+if (!data[0]) return; // 保存失敗時は何もしない
+
 const record = data[0];
 
 calendar.addEvent({
@@ -84,7 +86,7 @@ id: record.id,
 booked: false
 }
 });
-
+calendar.unselect(); // 選択状態を解除
 },
 
 eventClick: async function(info) {
