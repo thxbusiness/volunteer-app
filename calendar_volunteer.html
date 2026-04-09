@@ -103,20 +103,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 3. DBから読み込み
+// 3. DBから読み込み
     async function loadEvents() {
         try {
+            console.log("データ読み込み開始: vid =", VOLUNTEER_ID); // チェック用
+
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
                 headers: {
                     "apikey": API_KEY,
                     "Authorization": `Bearer ${API_KEY}`
                 }
             });
+
+            if (!res.ok) {
+                console.error("DBからの取得に失敗しました。ステータス:", res.status);
+                return;
+            }
+
             const data = await res.json();
+            console.log("受信データ件数:", data.length, "内容:", data); // チェック用
             
             calendar.removeAllEvents();
+
             data.forEach(item => {
-                // 時差計算を無効化するため末尾のタイムゾーン指定を削除
+                // Supabaseから届く時間データが null でないか確認
+                if (!item.start_time || !item.end_time) return;
+
+                // 時差計算のズレ（9時間問題）を回避するための処理
                 const cleanStart = item.start_time.replace('Z', '').replace('+00', '');
                 const cleanEnd = item.end_time.replace('Z', '').replace('+00', '');
 
@@ -132,9 +145,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             });
+
             calendar.render();
+            console.log("カレンダーへの描画が完了しました。");
+
         } catch (error) {
-            console.error("データの読み込みに失敗しました:", error);
+            console.error("重大なエラーが発生しました:", error);
         }
     }
 
