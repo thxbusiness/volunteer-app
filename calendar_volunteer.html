@@ -44,51 +44,47 @@ document.addEventListener('DOMContentLoaded', function() {
             return eventData;
         },
 
-        // 保存処理
-        select: async function(info) {
-            // ★ポイント：ISO形式だとUTCに変換されるため、ローカルの文字列（YYYY-MM-DDTHH:mm:ss）を自作する
-            const toLocalISO = (date) => {
-                const offset = date.getTimezoneOffset() * 60000;
-                const localISOTime = (new Date(date - offset)).toISOString().slice(0, -1);
-                return localISOTime;
-            };
+      select: async function(info) {
+    // タイムゾーンを含まない、DBが理解しやすい形式（YYYY-MM-DD HH:mm:ss）に変換
+    const formatDateTime = (date) => {
+        const pad = (n) => n < 10 ? '0' + n : n;
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    };
 
-            const startTime = toLocalISO(info.start);
-            const endTime = toLocalISO(info.end);
+    const startTime = formatDateTime(info.start);
+    const endTime = formatDateTime(info.end);
 
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
-                method: "POST",
-                headers: {
-                    "apikey": API_KEY,
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json",
-                    "Prefer": "return=representation"
-                },
-                body: JSON.stringify({
-                    volunteer_id: VOLUNTEER_ID, // 統一
-                    start_time: startTime,
-                    end_time: endTime,
-                    booked: false
-                })
-            });
+    console.log("送信データ:", startTime, endTime); // デバッグ用
 
-            const data = await res.json();
-            if (data && data.length > 0) {
-                const record = data[0];
-                calendar.addEvent({
-                    id: record.id,
-                    start: record.start_time,
-                    end: record.end_time,
-                    title: "対応可能",
-                    color:"#3788d8",
-                    extendedProps: { 
-                        id: record.id,
-                        booked: false
-                    }
-                });
-            }
-            calendar.unselect();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+        method: "POST",
+        headers: {
+            "apikey": API_KEY,
+            "Authorization": `Bearer ${API_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
         },
+        body: JSON.stringify({
+            volunteer_id: VOLUNTEER_ID,
+            start_time: startTime,
+            end_time: endTime,
+            booked: false
+        })
+    });
+
+    const data = await res.json();
+    if (data && data.length > 0) {
+        calendar.addEvent({
+            id: data[0].id,
+            start: data[0].start_time,
+            end: data[0].end_time,
+            title: "対応可能",
+            color: "#3788d8",
+            extendedProps: { id: data[0].id, booked: false }
+        });
+    }
+    calendar.unselect();
+},
 
         // 削除処理
         eventClick: async function(info) {
