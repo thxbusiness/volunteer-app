@@ -51,10 +51,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
     };
 
-    const startTime = formatDateTime(info.start);
-    const endTime = formatDateTime(info.end);
+    const start_time = formatDateTime(info.start);
+    const end_time = formatDateTime(info.end);
 
-    console.log("送信データ:", startTime, endTime); // デバッグ用
+    console.log("送信データ:", start_time, end_time); // デバッグ用
 
     const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
         method: "POST",
@@ -66,8 +66,8 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         body: JSON.stringify({
             volunteer_id: VOLUNTEER_ID,
-            start_time: startTime,
-            end_time: endTime,
+            start_time: start_time,
+            end_time: end_time,
             booked: false
         })
     });
