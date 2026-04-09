@@ -4,13 +4,30 @@
     <meta charset="UTF-8">
     <title>対応可能時間登録</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: #333; }
+        
+        /* QR表示エリアのスタイル */
+        .qr-section { text-align: center; margin-bottom: 20px; }
+        #qr-btn { padding: 10px 20px; font-size: 1rem; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        #qr-container { display:none; margin-top: 20px; background: white; padding: 20px; border: 1px solid #ddd; display: inline-block; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        #qrcode { margin: 0 auto; }
     </style>
 </head>
 <body>
+
+<div class="qr-section">
+    <button id="qr-btn">管理者用QRコードを表示</button>
+    <br>
+    <div id="qr-container">
+        <div id="qrcode"></div>
+        <p style="font-size: 0.8rem; margin-top: 10px; color: #666;">このQRを管理者に提示してください</p>
+        <button onclick="document.getElementById('qr-container').style.display='none'" style="color: #e74c3c; border: none; background: none; cursor: pointer; font-size: 0.9rem;">[ 閉じる ]</button>
+    </div>
+</div>
 
 <h2>ブロックをドラッグして移動や時間の変更ができます</h2>
 <div id="calendar"></div>
@@ -38,15 +55,14 @@ document.addEventListener('DOMContentLoaded', function() {
         slotDuration: '01:00:00',
         selectable: true,
         allDaySlot: false,
-        editable: true, // ★ここを true にして移動・変形を許可
+        editable: true,
         eventStartEditable: true,
         eventDurationEditable: true,
 
-        // 1. 新規作成処理
+        // 1. 新規作成
         select: async function(info) {
             const startTime = formatDate(info.start);
             const endTime = formatDate(info.end);
-
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
                 headers: {
@@ -66,14 +82,13 @@ document.addEventListener('DOMContentLoaded', function() {
             calendar.unselect();
         },
 
-        // 2. ドラッグ移動・時間変更時の更新処理（重要！）
+        // 2. 移動・時間変更の更新
         eventChange: async function(info) {
             const id = info.event.extendedProps.id;
             const newStart = formatDate(info.event.start);
             const newEnd = formatDate(info.event.end);
-
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
-                method: "PATCH", // 既存のデータを更新
+                method: "PATCH",
                 headers: {
                     "apikey": API_KEY,
                     "Authorization": `Bearer ${API_KEY}`,
@@ -84,14 +99,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     end_time: newEnd
                 })
             });
-
             if (!res.ok) {
-                alert("更新に失敗しました。元の位置に戻します。");
+                alert("更新に失敗しました。");
                 info.revert();
             }
         },
 
-        // 3. 削除処理
+        // 3. 削除
         eventClick: async function(info) {
             if(info.event.extendedProps.booked) return alert("予約済みのため操作不可");
             if(confirm("この枠を削除しますか？")){
@@ -105,18 +119,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 4. DBから読み込み
+    // 4. DBから読み込み（時差補正込み）
     async function loadEvents() {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
         const data = await res.json();
-        
         calendar.removeAllEvents();
         data.forEach(item => {
             const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
             const cleanEnd = item.end_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-
             calendar.addEvent({
                 id: item.id,
                 start: cleanStart,
@@ -129,10 +141,28 @@ document.addEventListener('DOMContentLoaded', function() {
         calendar.render();
     }
 
+    // 5. QRコード表示ボタンのクリックイベント
+    const qrBtn = document.getElementById('qr-btn');
+    qrBtn.addEventListener('click', function() {
+        if (!VOLUNTEER_ID) return alert("vidがありません");
+        const qrContainer = document.getElementById('qr-container');
+        const qrElement = document.getElementById('qrcode');
+
+        // 管理者用URLを作成
+        const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}`;
+        qrContainer.style.display = 'inline-block';
+
+        // QRコード生成
+        qrElement.innerHTML = "";
+        new QRCode(qrElement, {
+            text: adminUrl,
+            width: 160,
+            height: 160
+        });
+    });
+
     loadEvents();
-    calendar.render();
 });
 </script>
-
 </body>
 </html>
