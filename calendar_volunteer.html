@@ -10,17 +10,15 @@
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: #333; margin-top: 30px; }
         
-        /* ボタンエリアのスタイル */
         .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
         .btn { padding: 12px 24px; font-size: 0.95rem; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: opacity 0.2s; }
         .btn:hover { opacity: 0.8; }
         
-        /* 各ボタンの色 */
         #qr-btn { background: #28a745; color: white; }
         #admin-list-btn { background: #3788d8; color: white; text-decoration: none; display: inline-block; line-height: 1.2; }
         
-        /* QR表示エリア */
-        #qr-container { display:none; margin-top: 20px; background: white; padding: 20px; border: 1px solid #ddd; display: inline-block; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        /* QR表示エリア：初期状態を display: none !important; で確実に隠します */
+        #qr-container { display: none !important; margin-top: 20px; background: white; padding: 20px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         #qrcode { margin: 0 auto; }
     </style>
 </head>
@@ -28,7 +26,6 @@
 
 <div class="admin-controls">
     <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
-
     <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
 </div>
 
@@ -36,7 +33,7 @@
     <div id="qr-container" style="display: none;">
         <div id="qrcode"></div>
         <p style="font-size: 0.8rem; margin-top: 10px; color: #666;">このQRを管理者に提示してください</p>
-        <button onclick="document.getElementById('qr-container').style.display='none'" style="color: #e74c3c; border: none; background: none; cursor: pointer; font-size: 0.9rem;">[ 閉じる ]</button>
+        <button onclick="document.getElementById('qr-container').style.setProperty('display', 'none', 'important')" style="color: #e74c3c; border: none; background: none; cursor: pointer; font-size: 0.9rem;">[ 閉じる ]</button>
     </div>
 </div>
 
@@ -50,7 +47,6 @@ const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const params = new URLSearchParams(location.search);
 const VOLUNTEER_ID = params.get("vid");
 
-// admin.htmlへのリンクを動的に設定
 if (VOLUNTEER_ID) {
     document.getElementById('admin-list-btn').href = `admin.html?vid=${VOLUNTEER_ID}`;
 }
@@ -58,7 +54,6 @@ if (VOLUNTEER_ID) {
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
 
-    // 時間フォーマット用関数
     const formatDate = (date) => {
         const pad = (n) => n < 10 ? '0' + n : n;
         return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
@@ -75,7 +70,6 @@ document.addEventListener('DOMContentLoaded', function() {
         eventStartEditable: true,
         eventDurationEditable: true,
 
-        // 新規作成
         select: async function(info) {
             const startTime = formatDate(info.start);
             const endTime = formatDate(info.end);
@@ -98,7 +92,6 @@ document.addEventListener('DOMContentLoaded', function() {
             calendar.unselect();
         },
 
-        // 更新
         eventChange: async function(info) {
             const id = info.event.extendedProps.id;
             const newStart = formatDate(info.event.start);
@@ -118,7 +111,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
 
-        // 削除
         eventClick: async function(info) {
             if(info.event.extendedProps.booked) return alert("予約済みのため操作不可");
             if(confirm("この枠を削除しますか？")){
@@ -132,7 +124,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // DBから読み込み
     async function loadEvents() {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
@@ -154,14 +145,16 @@ document.addEventListener('DOMContentLoaded', function() {
         calendar.render();
     }
 
-    // QRコード生成
     const qrBtn = document.getElementById('qr-btn');
     qrBtn.addEventListener('click', function() {
         if (!VOLUNTEER_ID) return alert("vidがありません");
         const qrContainer = document.getElementById('qr-container');
         const qrElement = document.getElementById('qrcode');
         const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}`;
-        qrContainer.style.display = 'inline-block';
+        
+        // ボタンを押した時だけ display を inline-block に変更
+        qrContainer.style.setProperty('display', 'inline-block', 'important');
+        
         qrElement.innerHTML = "";
         new QRCode(qrElement, { text: adminUrl, width: 160, height: 160 });
     });
