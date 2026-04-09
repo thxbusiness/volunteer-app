@@ -1,20 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>対応可能時間登録</title>
-
-<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-
-<style>
-body {
-font-family: sans-serif;
-margin: 20px;
-}
-</style>
+    <meta charset="UTF-8">
+    <title>対応可能時間登録</title>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #calendar { max-width: 900px; margin: 0 auto; }
+    </style>
 </head>
-
 <body>
 
 <h2>対応可能時間をクリックまたはドラッグしてください</h2>
@@ -28,124 +23,123 @@ const params = new URLSearchParams(location.search);
 const VOLUNTEER_ID = params.get("vid");
 
 if(!VOLUNTEER_ID){
-alert("URLにvidがありません");
+    alert("URLにvidがありません");
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    let calendarEl = document.getElementById('calendar');
 
-let calendarEl = document.getElementById('calendar');
+    let calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        timeZone: 'local', // ブラウザのタイムゾーンを使用
+        locale: 'ja',
+        slotDuration: '01:00:00',
+        selectable: true,
+        selectMirror: true,
+        editable: true,
+        eventDurationEditable: true,
 
-let calendar = new FullCalendar.Calendar(calendarEl, {
+        // 読み込み（表示）のズレを防ぐ設定
+        eventDataTransform: function(eventData) {
+            return eventData;
+        },
 
-initialView: 'timeGridWeek',
-timeZone: 'local', // ★これを追加
-slotDuration: '01:00:00',
-selectable: true,
-selectMirror: true,
-editable: true,
-eventDurationEditable: true,
+        // 保存処理
+        select: async function(info) {
+            // ★ポイント：ISO形式だとUTCに変換されるため、ローカルの文字列（YYYY-MM-DDTHH:mm:ss）を自作する
+            const toLocalISO = (date) => {
+                const offset = date.getTimezoneOffset() * 60000;
+                const localISOTime = (new Date(date - offset)).toISOString().slice(0, -1);
+                return localISOTime;
+            };
 
-eventAllow: function(dropInfo, draggedEvent) {
-return !draggedEvent.extendedProps.booked;
-},
+            const startTime = toLocalISO(info.start);
+            const endTime = toLocalISO(info.end);
 
-select: async function(info) {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+                method: "POST",
+                headers: {
+                    "apikey": API_KEY,
+                    "Authorization": `Bearer ${API_KEY}`,
+                    "Content-Type": "application/json",
+                    "Prefer": "return=representation"
+                },
+                body: JSON.stringify({
+                    volunteer_id: VOLUNTEER_ID, // 統一
+                    start_time: startTime,
+                    end_time: endTime,
+                    booked: false
+                })
+            });
 
- // 念のためISO形式を保証
-const startTime = info.start.toISOString();
-const endTime = info.end.toISOString();
-
-const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
-method: "POST",
-headers: {
-"apikey": API_KEY,
-"Authorization": `Bearer ${API_KEY}`,
-"Content-Type": "application/json",
-"Prefer": "return=representation"
-},
-body: JSON.stringify({
-volunteer_id: VOLUNTEER_ID, // ここを VOLUNTEER_ID に統一
-start_time: startTime,      // ISO形式で送る
-end_time: endTime,          // ISO形式で送る
-booked: false
-})
-});
-
-const data = await res.json();
-if (!data[0]) return; // 保存失敗時は何もしない
-
-const record = data[0];
-
-calendar.addEvent({
-start: record.start_time,
-end: record.end_time,
-title: "対応可能",
-color:"#3788d8",
-extendedProps: { 
-id: record.id,
-booked: false
-}
-});
-calendar.unselect(); // 選択状態を解除
-},
-
-eventClick: async function(info) {
-
-if(info.event.extendedProps.booked){
-alert("予約済みのため削除できません");
-return;
-}
-
-if(confirm("削除しますか？")){
-
-const id = info.event.extendedProps.id;
-
-await fetch(
-`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}&volunteer_id=eq.${VOLUNTEER_ID}`,
-{
-method: "DELETE",
-headers: {
-"apikey": API_KEY,
-"Authorization": `Bearer ${API_KEY}`
-}
-});
-
-info.event.remove();
-}
-
-}
-
-});
-
-/* DBから読み込み */
-fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-    headers: {
-        "apikey": API_KEY,
-        "Authorization": `Bearer ${API_KEY}`
-    }
-})
-.then(res => res.json())
-.then(data => {
-    // 既存のイベントを一度クリア（二重表示防止）
-    calendar.getEvents().forEach(e => e.remove());
-
-    data.forEach(item => {
-        calendar.addEvent({
-            id: item.id, // IDをしっかり紐付け
-            start: item.start_time, // Supabaseの timestamptz 形式
-            end: item.end_time,
-            title: item.booked ? "予約済み" : "対応可能",
-            color: item.booked ? "#999" : "#3788d8",
-            extendedProps: { 
-                id: item.id,
-                booked: item.booked 
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const record = data[0];
+                calendar.addEvent({
+                    id: record.id,
+                    start: record.start_time,
+                    end: record.end_time,
+                    title: "対応可能",
+                    color:"#3788d8",
+                    extendedProps: { 
+                        id: record.id,
+                        booked: false
+                    }
+                });
             }
-        });
+            calendar.unselect();
+        },
+
+        // 削除処理
+        eventClick: async function(info) {
+            if(info.event.extendedProps.booked){
+                alert("予約済みのため削除できません");
+                return;
+            }
+            if(confirm("削除しますか？")){
+                const id = info.event.extendedProps.id;
+                await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
+                    method: "DELETE",
+                    headers: {
+                        "apikey": API_KEY,
+                        "Authorization": `Bearer ${API_KEY}`
+                    }
+                });
+                info.event.remove();
+            }
+        }
     });
-});
 
-calendar.render();
+    // DBから読み込み
+    function loadEvents() {
+        fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+            headers: {
+                "apikey": API_KEY,
+                "Authorization": `Bearer ${API_KEY}`
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            calendar.removeAllEvents();
+            data.forEach(item => {
+                calendar.addEvent({
+                    id: item.id,
+                    start: item.start_time,
+                    end: item.end_time,
+                    title: item.booked ? "予約済み" : "対応可能",
+                    color: item.booked ? "#999" : "#3788d8",
+                    extendedProps: { 
+                        id: item.id,
+                        booked: item.booked 
+                    }
+                });
+            });
+            calendar.render();
+        });
+    }
 
+    loadEvents();
+    calendar.render();
 });
 </script>
 
