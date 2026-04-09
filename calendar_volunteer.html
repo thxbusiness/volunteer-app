@@ -38,6 +38,7 @@ let calendarEl = document.getElementById('calendar');
 let calendar = new FullCalendar.Calendar(calendarEl, {
 
 initialView: 'timeGridWeek',
+timeZone: 'local', // ★これを追加
 slotDuration: '01:00:00',
 selectable: true,
 selectMirror: true,
@@ -112,29 +113,29 @@ info.event.remove();
 
 /* DBから読み込み */
 fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-headers: {
-"apikey": API_KEY,
-"Authorization": `Bearer ${API_KEY}`
-}
+    headers: {
+        "apikey": API_KEY,
+        "Authorization": `Bearer ${API_KEY}`
+    }
 })
 .then(res => res.json())
 .then(data => {
+    // 既存のイベントを一度クリア（二重表示防止）
+    calendar.getEvents().forEach(e => e.remove());
 
-data.forEach(item => {
-
-calendar.addEvent({
-start: item.start_time,
-end: item.end_time,
-title: item.booked ? "予約済み" : "対応可能",
-color: item.booked ? "#999" : "#3788d8",
-extendedProps: { 
-id:item.id,
-booked: item.booked 
-}
-});
-
-});
-
+    data.forEach(item => {
+        calendar.addEvent({
+            id: item.id, // IDをしっかり紐付け
+            start: item.start_time, // Supabaseの timestamptz 形式
+            end: item.end_time,
+            title: item.booked ? "予約済み" : "対応可能",
+            color: item.booked ? "#999" : "#3788d8",
+            extendedProps: { 
+                id: item.id,
+                booked: item.booked 
+            }
+        });
+    });
 });
 
 calendar.render();
