@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>対応可能時間登録</title>
-    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: #333; }
+        /* カレンダーが表示されない、または崩れるのを防ぐための最低限のスタイル */
+        .fc { background: white; }
     </style>
 </head>
 <body>
@@ -23,33 +24,28 @@ const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 const params = new URLSearchParams(location.search);
 const VOLUNTEER_ID = params.get("vid");
 
-if(!VOLUNTEER_ID){
-    alert("URLに vid がありません。");
-}
-
 document.addEventListener('DOMContentLoaded', function() {
     const calendarEl = document.getElementById('calendar');
 
     const calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'timeGridWeek',
-        timeZone: 'local', // ブラウザ（日本）の時間を基準にする
+        timeZone: 'local', 
         locale: 'ja',
         slotDuration: '01:00:00',
         selectable: true,
-        selectMirror: true,
-        editable: false, // 意図しないドラッグ移動を防ぐため一旦 false
+        allDaySlot: false,
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'timeGridWeek,timeGridDay'
+        },
 
-        // 1. 保存処理（新規作成）
+        // 1. 保存処理
         select: async function(info) {
-            // 日本時間のまま文字列形式 (YYYY-MM-DD HH:mm:ss) に変換
-            const formatDate = (date) => {
-                const offset = date.getTimezoneOffset() * 60000;
-                const local = new Date(date - offset);
-                return local.toISOString().replace('T', ' ').slice(0, 19);
-            };
-
-            const startTime = formatDate(info.start);
-            const endTime = formatDate(info.end);
+            // 日本時間の文字列 (YYYY-MM-DD HH:mm:ss) を作成
+            const pad = (n) => n < 10 ? '0' + n : n;
+            const startTime = `${info.start.getFullYear()}-${pad(info.start.getMonth()+1)}-${pad(info.start.getDate())} ${pad(info.start.getHours())}:${pad(info.start.getMinutes())}:00`;
+            const endTime = `${info.end.getFullYear()}-${pad(info.end.getMonth()+1)}-${pad(info.end.getDate())} ${pad(info.end.getHours())}:${pad(info.end.getMinutes())}:00`;
 
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
@@ -67,91 +63,50 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
             });
 
-            const data = await res.json();
-            if (data && data.length > 0) {
-                // DBから戻ってきた値の「Z」や「+00」を削ってカレンダーに追加
-                const record = data[0];
-                calendar.addEvent({
-                    id: record.id,
-                    start: record.start_time.replace('Z', '').replace('+00', ''),
-                    end: record.end_time.replace('Z', '').replace('+00', ''),
-                    title: "対応可能",
-                    color: "#3788d8",
-                    extendedProps: { id: record.id, booked: false }
-                });
+            if (res.ok) {
+                loadEvents(); // 保存に成功したら再読み込みして表示を確定させる
             }
             calendar.unselect();
         },
 
         // 2. 削除処理
         eventClick: async function(info) {
-            if(info.event.extendedProps.booked){
-                alert("この枠は既に予約が入っているため削除できません。");
-                return;
-            }
-            if(confirm("この対応可能枠を削除しますか？")){
+            if(info.event.extendedProps.booked) return alert("予約済みのため削除不可");
+            if(confirm("削除しますか？")){
                 const id = info.event.extendedProps.id;
                 await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
                     method: "DELETE",
-                    headers: {
-                        "apikey": API_KEY,
-                        "Authorization": `Bearer ${API_KEY}`
-                    }
+                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
                 });
                 info.event.remove();
             }
         }
     });
 
-// 3. DBから読み込み
+    // 3. DBから読み込み（時間のズレを強力に補正）
     async function loadEvents() {
-        try {
-            console.log("データ読み込み開始: vid =", VOLUNTEER_ID); // チェック用
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        calendar.removeAllEvents();
+        data.forEach(item => {
+            // スクリーンショットにある "+00:00" や "T"、"Z" をすべて取り除き、
+            // カレンダーが「そのままの時間」として解釈するようにします
+            const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
+            const cleanEnd = item.end_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
 
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-                headers: {
-                    "apikey": API_KEY,
-                    "Authorization": `Bearer ${API_KEY}`
-                }
+            calendar.addEvent({
+                id: item.id,
+                start: cleanStart,
+                end: cleanEnd,
+                title: item.booked ? "予約済み" : "対応可能",
+                color: item.booked ? "#999" : "#3788d8",
+                extendedProps: { id: item.id, booked: item.booked }
             });
-
-            if (!res.ok) {
-                console.error("DBからの取得に失敗しました。ステータス:", res.status);
-                return;
-            }
-
-            const data = await res.json();
-            console.log("受信データ件数:", data.length, "内容:", data); // チェック用
-            
-            calendar.removeAllEvents();
-
-            data.forEach(item => {
-                // Supabaseから届く時間データが null でないか確認
-                if (!item.start_time || !item.end_time) return;
-
-                // 時差計算のズレ（9時間問題）を回避するための処理
-                const cleanStart = item.start_time.replace('Z', '').replace('+00', '');
-                const cleanEnd = item.end_time.replace('Z', '').replace('+00', '');
-
-                calendar.addEvent({
-                    id: item.id,
-                    start: cleanStart,
-                    end: cleanEnd,
-                    title: item.booked ? "予約済み" : "対応可能",
-                    color: item.booked ? "#999" : "#3788d8",
-                    extendedProps: { 
-                        id: item.id,
-                        booked: item.booked 
-                    }
-                });
-            });
-
-            calendar.render();
-            console.log("カレンダーへの描画が完了しました。");
-
-        } catch (error) {
-            console.error("重大なエラーが発生しました:", error);
-        }
+        });
+        calendar.render();
     }
 
     loadEvents();
