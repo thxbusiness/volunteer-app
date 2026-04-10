@@ -80,10 +80,21 @@
                         hour: '2-digit', minute: '2-digit'
                     });
 
-                    // ✅ 修正後のコード
-// データの形に合わせて、配列の0番目からニックネームを取り出すようにします
-const userDetail = Array.isArray(item.users) ? item.users[0] : item.users;
-const name = userDetail ? userDetail.nickname : item.volunteer_id;
+                    // --- ここから差し替え ---
+// 1. まず「名前（nickname）」がどこに入っているか、自動で探し出します
+let name = item.volunteer_id; // 見つからない時のための予備（IDを表示）
+
+if (item.users) {
+    // usersが配列（リスト）で届いている場合
+    if (Array.isArray(item.users) && item.users.length > 0) {
+        name = item.users[0].nickname;
+    } 
+    // usersが1つのデータとして届いている場合
+    else if (item.users.nickname) {
+        name = item.users.nickname;
+    }
+}
+// --- ここまで差し替え ---
 
                     const card = document.createElement("div");
                     card.className = "contract-card";
