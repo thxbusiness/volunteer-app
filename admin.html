@@ -72,6 +72,9 @@
 
                 listDiv.innerHTML = "";
                 data.forEach(item => {
+                    // ✅ データの形を画面で確認するためのコード（これを追加！）
+console.log("届いたデータの中身:", item);
+
                     const startDate = new Date(item.start_time);
                     const dateStr = startDate.toLocaleDateString('ja-JP', {
                         year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
