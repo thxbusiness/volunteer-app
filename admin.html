@@ -7,6 +7,7 @@
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
         h2 { color: #333; border-bottom: 2px solid #3788d8; padding-bottom: 10px; }
+        .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
         .contract-card {
             background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #3788d8;
@@ -16,28 +17,51 @@
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
         .details { font-size: 0.85em; color: #666; }
         .no-data { text-align: center; color: #999; margin-top: 50px; }
+        .refresh-btn { 
+            padding: 10px 20px; background: #3788d8; color: white; 
+            border: none; border-radius: 5px; cursor: pointer;
+        }
+        select { padding: 10px; border-radius: 5px; border: 1px solid #ccc; background: white; }
     </style>
 </head>
 <body>
 
     <h2>🤝 成立済み契約一覧</h2>
-    <div id="contract-list">読み込み中...</div>
+    
+    <div class="controls">
+        <button class="refresh-btn" onclick="fetchContracts()">最新の状態に更新</button>
+        <select id="idFilter" onchange="fetchContracts()">
+            <option value="all">すべてのボランティア</option>
+            <option value="A001">A001 (田中)</option>
+        </select>
+    </div>
+    
+    <div id="contractList">読み込み中...</div>
 
     <script>
         const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
         const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-        const params = new URLSearchParams(location.search);
-        const VOLUNTEER_ID = params.get("vid");
-
         async function fetchContracts() {
-            const listDiv = document.getElementById("contract-list");
+            const listDiv = document.getElementById("contractList");
+            const filterId = document.getElementById("idFilter").value;
+            
+            listDiv.innerHTML = "読み込み中...";
+
             try {
-                // availabilityテーブルと一緒にusersテーブルのnicknameも取得する命令（select=*,users(...)の部分）
-                const url = `${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}&booked=eq.true&select=*,users(nickname)&order=start_time.asc`;
+                // ポイント：URLに「select=*,users(nickname)」を追加して、名前も一緒に持ってくるようにしました
+                let url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&select=*,users(nickname)&order=start_time.asc`;
                 
+                if (filterId !== "all") {
+                    url += `&volunteer_id=eq.${filterId}`;
+                }
+
                 const response = await fetch(url, {
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+                    method: "GET",
+                    headers: {
+                        "apikey": API_KEY,
+                        "Authorization": `Bearer ${API_KEY}`
+                    }
                 });
                 const data = await response.json();
 
@@ -48,9 +72,7 @@
 
                 listDiv.innerHTML = "";
                 data.forEach(item => {
-                    const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-                    const startDate = new Date(cleanStart.replace(/-/g, '/'));
-
+                    const startDate = new Date(item.start_time);
                     const dateStr = startDate.toLocaleDateString('ja-JP', {
                         year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
                     });
@@ -58,7 +80,7 @@
                         hour: '2-digit', minute: '2-digit'
                     });
 
-                    // ニックネームを取り出す（登録がない場合はIDを表示）
+                    // ニックネームを表示（名簿になければIDを表示）
                     const name = item.users ? item.users.nickname : item.volunteer_id;
 
                     const card = document.createElement("div");
@@ -68,7 +90,7 @@
                         <div class="date">${dateStr} ${timeStr}〜</div>
                         <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
                         <div class="details">
-                            📧 連絡先: ${item.restaurant_email || "未登録"}
+                            🆔 ID: ${item.volunteer_id} | 📧: ${item.restaurant_email || "未登録"}
                         </div>
                     `;
                     listDiv.appendChild(card);
@@ -80,11 +102,7 @@
             }
         }
 
-        if (VOLUNTEER_ID) {
-            fetchContracts();
-        } else {
-            listDiv.innerHTML = "ボランティアIDが指定されていません。";
-        }
+        fetchContracts();
     </script>
 </body>
 </html>
