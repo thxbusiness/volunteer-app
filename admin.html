@@ -7,30 +7,21 @@
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
         h2 { color: #333; border-bottom: 2px solid #3788d8; padding-bottom: 10px; }
-        .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
         .contract-card {
             background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #3788d8;
         }
         .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
-        .nickname { color: #2ecc71; font-weight: bold; font-size: 1.0em; margin-bottom: 5px; }
+        .nickname { color: #2ecc71; font-weight: bold; font-size: 1.2em; margin-bottom: 8px; }
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
-        .details { font-size: 0.85em; color: #666; }
-        .no-data { text-align: center; color: #999; margin-top: 50px; }
-        .refresh-btn { 
-            padding: 10px 20px; background: #3788d8; color: white; 
-            border: none; border-radius: 5px; cursor: pointer;
-        }
+        .details { font-size: 0.85em; color: #666; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px; }
+        .refresh-btn { padding: 10px 20px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
     <h2>🤝 成立済み契約一覧</h2>
-    
-    <div class="controls">
-        <button class="refresh-btn" onclick="fetchContracts()">最新の状態に更新</button>
-    </div>
-    
+    <button class="refresh-btn" onclick="fetchContracts()">最新の状態に更新</button>
     <div id="contractList">読み込み中...</div>
 
     <script>
@@ -39,71 +30,49 @@
 
         async function fetchContracts() {
             const listDiv = document.getElementById("contractList");
-            listDiv.innerHTML = "読み込み中...";
-
             try {
-                // 【重要】URLのパラメータに、確実にリレーションを含める書き方を採用
-                // ここで users(nickname) を指定することで、名簿から名前を引っ張ります
+                // nicknameのみをピンポイントで取得する命令
                 const url = `${SUPABASE_URL}/rest/v1/availability?select=*,users(nickname)&booked=eq.true&order=start_time.asc`;
                 
                 const response = await fetch(url, {
-                    method: "GET",
-                    headers: {
-                        "apikey": API_KEY,
-                        "Authorization": `Bearer ${API_KEY}`
-                    }
+                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
                 });
                 const data = await response.json();
 
-                if (data.length === 0) {
-                    listDiv.innerHTML = '<div class="no-data">該当する契約はありません。</div>';
-                    return;
-                }
-
                 listDiv.innerHTML = "";
                 data.forEach(item => {
-                    // デバッグ用（コンソールで確認用）
-                    console.log("各行のデータ:", item);
-
                     const startDate = new Date(item.start_time);
-                    const dateStr = startDate.toLocaleDateString('ja-JP', {
-                        year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
-                    });
-                    const timeStr = startDate.toLocaleTimeString('ja-JP', {
-                        hour: '2-digit', minute: '2-digit'
-                    });
+                    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+                    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
-                    // --- 名前の取り出し処理 ---
-                    let displayName = item.volunteer_id; // デフォルトはID
-                    
-                    // usersがnullでないか、配列か単体かを判定
+                    // 【今回の修正】ニックネームがあれば表示し、なければ何も出さない（または「未設定」とする）
+                    let nameDisplay = "";
                     if (item.users) {
-                        if (Array.isArray(item.users) && item.users.length > 0) {
-                            displayName = item.users[0].nickname || item.volunteer_id;
-                        } else if (item.users.nickname) {
-                            displayName = item.users.nickname;
+                        // 配列で届く場合と単体で届く場合の両方をカバー
+                        const u = Array.isArray(item.users) ? item.users[0] : item.users;
+                        if (u && u.nickname) {
+                            nameDisplay = `👤 担当：${u.nickname}`;
                         }
                     }
 
                     const card = document.createElement("div");
                     card.className = "contract-card";
                     card.innerHTML = `
-                        <div class="nickname">👤 担当ボランティア: ${displayName}</div>
+                        ${nameDisplay ? `<div class="nickname">${nameDisplay}</div>` : ""}
                         <div class="date">${dateStr} ${timeStr}〜</div>
                         <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
                         <div class="details">
-                            🆔 ID: ${item.volunteer_id} | 📧: ${item.restaurant_email || "未登録"}
+                            🆔 ボランティアID: ${item.volunteer_id}<br>
+                            📧 連絡先: ${item.restaurant_email || "未登録"}
                         </div>
                     `;
                     listDiv.appendChild(card);
                 });
 
             } catch (err) {
-                console.error(err);
-                listDiv.innerHTML = "データの取得に失敗しました。";
+                listDiv.innerHTML = "エラーが発生しました。";
             }
         }
-
         fetchContracts();
     </script>
 </body>
