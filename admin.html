@@ -12,8 +12,9 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #3788d8;
         }
         .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
+        .nickname { color: #2ecc71; font-weight: bold; font-size: 0.9em; margin-bottom: 5px; }
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
-        .details { font-size: 0.9em; color: #666; }
+        .details { font-size: 0.85em; color: #666; }
         .no-data { text-align: center; color: #999; margin-top: 50px; }
     </style>
 </head>
@@ -32,8 +33,8 @@
         async function fetchContracts() {
             const listDiv = document.getElementById("contract-list");
             try {
-                // booked=true（成立済み）のみを取得
-                const url = `${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}&booked=eq.true&order=start_time.asc`;
+                // availabilityテーブルと一緒にusersテーブルのnicknameも取得する命令（select=*,users(...)の部分）
+                const url = `${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}&booked=eq.true&select=*,users(nickname)&order=start_time.asc`;
                 
                 const response = await fetch(url, {
                     headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
@@ -47,9 +48,8 @@
 
                 listDiv.innerHTML = "";
                 data.forEach(item => {
-                    // --- ここで時差の修正（TやZ、ミリ秒を消して純粋な数字にする） ---
                     const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-                    const startDate = new Date(cleanStart.replace(/-/g, '/')); // ブラウザ互換性のための置換
+                    const startDate = new Date(cleanStart.replace(/-/g, '/'));
 
                     const dateStr = startDate.toLocaleDateString('ja-JP', {
                         year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
@@ -58,13 +58,17 @@
                         hour: '2-digit', minute: '2-digit'
                     });
 
+                    // ニックネームを取り出す（登録がない場合はIDを表示）
+                    const name = item.users ? item.users.nickname : item.volunteer_id;
+
                     const card = document.createElement("div");
                     card.className = "contract-card";
                     card.innerHTML = `
-                        <div class=\"date\">${dateStr} ${timeStr}〜</div>
-                        <div class=\"store-name\">🏢 ${item.restaurant_name || "不明な店舗"}</div>
-                        <div class=\"details\">
-                            🆔 ボランティアID: ${item.volunteer_id} | 📧 連絡先: ${item.restaurant_email || "未登録"}
+                        <div class="nickname">👤 担当ボランティア: ${name}</div>
+                        <div class="date">${dateStr} ${timeStr}〜</div>
+                        <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
+                        <div class="details">
+                            📧 連絡先: ${item.restaurant_email || "未登録"}
                         </div>
                     `;
                     listDiv.appendChild(card);
@@ -79,7 +83,7 @@
         if (VOLUNTEER_ID) {
             fetchContracts();
         } else {
-            document.getElementById("contract-list").innerHTML = "ボランティアIDが指定されていません。";
+            listDiv.innerHTML = "ボランティアIDが指定されていません。";
         }
     </script>
 </body>
