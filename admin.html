@@ -13,7 +13,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #3788d8;
         }
         .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
-        .nickname { color: #2ecc71; font-weight: bold; font-size: 0.9em; margin-bottom: 5px; }
+        .nickname { color: #2ecc71; font-weight: bold; font-size: 1.0em; margin-bottom: 5px; }
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
         .details { font-size: 0.85em; color: #666; }
         .no-data { text-align: center; color: #999; margin-top: 50px; }
@@ -21,7 +21,6 @@
             padding: 10px 20px; background: #3788d8; color: white; 
             border: none; border-radius: 5px; cursor: pointer;
         }
-        select { padding: 10px; border-radius: 5px; border: 1px solid #ccc; background: white; }
     </style>
 </head>
 <body>
@@ -30,10 +29,6 @@
     
     <div class="controls">
         <button class="refresh-btn" onclick="fetchContracts()">最新の状態に更新</button>
-        <select id="idFilter" onchange="fetchContracts()">
-            <option value="all">すべてのボランティア</option>
-            <option value="A001">A001 (田中)</option>
-        </select>
     </div>
     
     <div id="contractList">読み込み中...</div>
@@ -44,18 +39,13 @@
 
         async function fetchContracts() {
             const listDiv = document.getElementById("contractList");
-            const filterId = document.getElementById("idFilter").value;
-            
             listDiv.innerHTML = "読み込み中...";
 
             try {
-                // ポイント：URLに「select=*,users(nickname)」を追加して、名前も一緒に持ってくるようにしました
-                let url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&select=*,users(nickname)&order=start_time.asc`;
+                // 【重要】URLのパラメータに、確実にリレーションを含める書き方を採用
+                // ここで users(nickname) を指定することで、名簿から名前を引っ張ります
+                const url = `${SUPABASE_URL}/rest/v1/availability?select=*,users(nickname)&booked=eq.true&order=start_time.asc`;
                 
-                if (filterId !== "all") {
-                    url += `&volunteer_id=eq.${filterId}`;
-                }
-
                 const response = await fetch(url, {
                     method: "GET",
                     headers: {
@@ -72,8 +62,8 @@
 
                 listDiv.innerHTML = "";
                 data.forEach(item => {
-                    // ✅ データの形を画面で確認するためのコード（これを追加！）
-console.log("届いたデータの中身:", item);
+                    // デバッグ用（コンソールで確認用）
+                    console.log("各行のデータ:", item);
 
                     const startDate = new Date(item.start_time);
                     const dateStr = startDate.toLocaleDateString('ja-JP', {
@@ -83,26 +73,22 @@ console.log("届いたデータの中身:", item);
                         hour: '2-digit', minute: '2-digit'
                     });
 
-                    // --- ここから差し替え ---
-// 1. まず「名前（nickname）」がどこに入っているか、自動で探し出します
-let name = item.volunteer_id; // 見つからない時のための予備（IDを表示）
-
-if (item.users) {
-    // usersが配列（リスト）で届いている場合
-    if (Array.isArray(item.users) && item.users.length > 0) {
-        name = item.users[0].nickname;
-    } 
-    // usersが1つのデータとして届いている場合
-    else if (item.users.nickname) {
-        name = item.users.nickname;
-    }
-}
-// --- ここまで差し替え ---
+                    // --- 名前の取り出し処理 ---
+                    let displayName = item.volunteer_id; // デフォルトはID
+                    
+                    // usersがnullでないか、配列か単体かを判定
+                    if (item.users) {
+                        if (Array.isArray(item.users) && item.users.length > 0) {
+                            displayName = item.users[0].nickname || item.volunteer_id;
+                        } else if (item.users.nickname) {
+                            displayName = item.users.nickname;
+                        }
+                    }
 
                     const card = document.createElement("div");
                     card.className = "contract-card";
                     card.innerHTML = `
-                        <div class="nickname">👤 担当ボランティア: ${name}</div>
+                        <div class="nickname">👤 担当ボランティア: ${displayName}</div>
                         <div class="date">${dateStr} ${timeStr}〜</div>
                         <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
                         <div class="details">
