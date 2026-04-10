@@ -80,8 +80,10 @@
                         hour: '2-digit', minute: '2-digit'
                     });
 
-                    // ニックネームを表示（名簿になければIDを表示）
-                    const name = item.users ? item.users.nickname : item.volunteer_id;
+                    // ✅ 修正後のコード
+// データの形に合わせて、配列の0番目からニックネームを取り出すようにします
+const userDetail = Array.isArray(item.users) ? item.users[0] : item.users;
+const name = userDetail ? userDetail.nickname : item.volunteer_id;
 
                     const card = document.createElement("div");
                     card.className = "contract-card";
