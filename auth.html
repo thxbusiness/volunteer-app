@@ -9,8 +9,8 @@
         .auth-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
-        .toggle-btn { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; text-decoration: underline; background: none; border: none; width: 100%; }
-        /* 💡 display:none を使わず、JSで直接消し込みます */
+        .toggle-btn { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; border: none; background: none; width: 100%; text-decoration: underline; }
+        .error-msg { margin-top: 15px; color: #e74c3c; font-size: 14px; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -18,86 +18,63 @@
 <div class="auth-container">
     <h2 id="title">ログイン</h2>
     
-    <div id="nickname-container" style="display: none;">
+    <div id="nickname-area" style="display: none;">
         <input type="text" id="nickname" placeholder="ニックネーム（例：田中）">
     </div>
-
     <input type="email" id="email" placeholder="メールアドレス">
     
-    <button id="main-btn" onclick="handleAuth()">カレンダーを開く</button>
-    <div id="msg" style="margin-top:15px; color:red; font-size:14px; text-align:center; min-height: 1.5em;"></div>
+    <button id="main-btn">カレンダーを開く</button>
+    <div id="msg" class="error-msg"></div>
     
-    <button class="toggle-btn" onclick="toggleMode()">新規登録はこちら</button>
+    <button id="toggle-btn" class="toggle-btn">新規登録はこちら</button>
 </div>
 
 <script>
-    // ✅ Supabase情報を設定してください
-    const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs"; 
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // ⚠️ 【設定箇所】ここだけを書き換えてください
+    const S_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+    const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-    let isSignUpMode = false;
-
-    function toggleMode() {
-        console.log("切り替えボタンが押されました"); // 診断用
-
-        const container = document.getElementById('nickname-container');
-        const title = document.getElementById('title');
-        const mainBtn = document.getElementById('main-btn');
-        const toggleBtn = document.querySelector('.toggle-btn');
-
-        isSignUpMode = !isSignUpMode;
-
-        if (isSignUpMode) {
-            // 新規登録モード
-            container.style.display = 'block';
-            title.innerText = "新規登録";
-            mainBtn.innerText = "登録して確認メールを送信";
-            toggleBtn.innerText = "登録済みの方はこちら（ログイン）";
-        } else {
-            // ログインモード
-            container.style.display = 'none';
-            title.innerText = "ログイン";
-            mainBtn.innerText = "カレンダーを開く";
-            toggleBtn.innerText = "新規登録はこちら";
-        }
+    // --- ここから下は一切触らなくて大丈夫です ---
+    let supabaseClient;
+    try {
+        supabaseClient = supabase.createClient(S_URL, S_KEY);
+    } catch (e) {
+        document.getElementById('msg').innerText = "設定エラー：URLかキーが正しくありません。";
     }
 
-    async function handleAuth() {
+    let isSignUp = false;
+
+    // ボタンの動作設定
+    document.getElementById('toggle-btn').addEventListener('click', () => {
+        isSignUp = !isSignUp;
+        document.getElementById('nickname-area').style.display = isSignUp ? 'block' : 'none';
+        document.getElementById('title').innerText = isSignUp ? '新規登録' : 'ログイン';
+        document.getElementById('main-btn').innerText = isSignUp ? '登録して確認メールを送信' : 'カレンダーを開く';
+        document.getElementById('toggle-btn').innerText = isSignUp ? 'ログインに戻る' : '新規登録はこちら';
+    });
+
+    document.getElementById('main-btn').addEventListener('click', async () => {
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msg = document.getElementById('msg');
-        msg.innerText = ""; // メッセージリセット
+        msg.innerText = "処理中...";
+        msg.style.color = "#333";
 
-        if (!email) { msg.innerText = "メールアドレスを入力してください"; return; }
+        if (!email) { msg.innerText = "メールアドレスを入力してください"; msg.style.color = "red"; return; }
 
-        if (isSignUpMode) {
-            if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
-            
-            const { error } = await supabase.auth.signUp({
-                email: email,
-                password: "password123",
-                options: { data: { nickname: nickname } }
+        if (isSignUp) {
+            if (!nickname) { msg.innerText = "ニックネームを入力してください"; msg.style.color = "red"; return; }
+            const { error } = await supabaseClient.auth.signUp({
+                email: email, password: "password123", options: { data: { nickname: nickname } }
             });
-            
-            if (error) msg.innerText = error.message;
-            else {
-                msg.style.color = "green";
-                msg.innerText = "確認メールを送信しました。リンクをクリックしてください。";
-            }
+            if (error) { msg.innerText = error.message; msg.style.color = "red"; }
+            else { msg.style.color = "green"; msg.innerText = "承認メールを送りました。リンクをクリックしてください。"; }
         } else {
-            const { error } = await supabase.auth.signInWithPassword({
-                email: email,
-                password: "password123"
-            });
-            
-            if (error) {
-                msg.innerText = "登録がないか、メール承認が終わっていません。";
-            } else {
-                window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`;
-            }
+            const { error } = await supabaseClient.auth.signInWithPassword({ email: email, password: "password123" });
+            if (error) { msg.innerText = "登録がないか、承認が終わっていません。"; msg.style.color = "red"; }
+            else { window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`; }
         }
-    }
+    });
 </script>
 </body>
 </html>
