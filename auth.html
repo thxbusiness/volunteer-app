@@ -8,10 +8,9 @@
         body { font-family: sans-serif; display: flex; justify-content: center; padding-top: 50px; background: #f4f7f6; }
         .auth-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
-        button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; }
-        .toggle { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; text-decoration: underline; }
-        /* 💡 最初は隠しておく設定 */
-        .hidden { display: none; }
+        button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .toggle-btn { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; text-decoration: underline; background: none; border: none; width: 100%; }
+        /* 💡 display:none を使わず、JSで直接消し込みます */
     </style>
 </head>
 <body>
@@ -19,45 +18,48 @@
 <div class="auth-container">
     <h2 id="title">ログイン</h2>
     
-    <div id="signup-area" class="hidden">
+    <div id="nickname-container" style="display: none;">
         <input type="text" id="nickname" placeholder="ニックネーム（例：田中）">
     </div>
 
     <input type="email" id="email" placeholder="メールアドレス">
     
-    <button id="btn" onclick="handleAuth()">カレンダーを開く</button>
-    <div id="msg" style="margin-top:15px; color:red; font-size:14px; text-align:center;"></div>
+    <button id="main-btn" onclick="handleAuth()">カレンダーを開く</button>
+    <div id="msg" style="margin-top:15px; color:red; font-size:14px; text-align:center; min-height: 1.5em;"></div>
     
-    <div class="toggle" onclick="toggleMode()">新規登録はこちら</div>
+    <button class="toggle-btn" onclick="toggleMode()">新規登録はこちら</button>
 </div>
 
 <script>
+    // ✅ Supabase情報を設定してください
     const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-    const SUPABASE_KEY = "あなたのanonキー"; // ここを書き換えてください
+    const SUPABASE_KEY = "あなたのanonキー"; 
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    let mode = "login";
+    let isSignUpMode = false;
 
     function toggleMode() {
-        const signupArea = document.getElementById('signup-area');
-        const title = document.getElementById('title');
-        const btn = document.getElementById('btn');
-        const toggle = document.querySelector('.toggle');
+        console.log("切り替えボタンが押されました"); // 診断用
 
-        if (mode === "login") {
-            // 新規登録モードへ
-            mode = "signup";
-            signupArea.classList.remove('hidden');
+        const container = document.getElementById('nickname-container');
+        const title = document.getElementById('title');
+        const mainBtn = document.getElementById('main-btn');
+        const toggleBtn = document.querySelector('.toggle-btn');
+
+        isSignUpMode = !isSignUpMode;
+
+        if (isSignUpMode) {
+            // 新規登録モード
+            container.style.display = 'block';
             title.innerText = "新規登録";
-            btn.innerText = "登録して確認メールを送信";
-            toggle.innerText = "登録済みの方はこちら（ログイン）";
+            mainBtn.innerText = "登録して確認メールを送信";
+            toggleBtn.innerText = "登録済みの方はこちら（ログイン）";
         } else {
-            // ログインモードへ
-            mode = "login";
-            signupArea.classList.add('hidden');
+            // ログインモード
+            container.style.display = 'none';
             title.innerText = "ログイン";
-            btn.innerText = "カレンダーを開く";
-            toggle.innerText = "新規登録はこちら";
+            mainBtn.innerText = "カレンダーを開く";
+            toggleBtn.innerText = "新規登録はこちら";
         }
     }
 
@@ -65,25 +67,35 @@
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msg = document.getElementById('msg');
+        msg.innerText = ""; // メッセージリセット
 
         if (!email) { msg.innerText = "メールアドレスを入力してください"; return; }
 
-        if (mode === "signup") {
+        if (isSignUpMode) {
             if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
+            
             const { error } = await supabase.auth.signUp({
                 email: email,
                 password: "password123",
                 options: { data: { nickname: nickname } }
             });
+            
             if (error) msg.innerText = error.message;
-            else msg.style.color = "green", msg.innerText = "承認メールを送りました。リンクをクリックしてください。";
+            else {
+                msg.style.color = "green";
+                msg.innerText = "確認メールを送信しました。リンクをクリックしてください。";
+            }
         } else {
             const { error } = await supabase.auth.signInWithPassword({
                 email: email,
                 password: "password123"
             });
-            if (error) msg.innerText = "登録がないか、承認が終わっていません。";
-            else window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`;
+            
+            if (error) {
+                msg.innerText = "登録がないか、メール承認が終わっていません。";
+            } else {
+                window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`;
+            }
         }
     }
 </script>
