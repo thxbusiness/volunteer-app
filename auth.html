@@ -7,10 +7,12 @@
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; padding-top: 50px; background: #f4f7f6; }
         .auth-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .msg { margin-top: 15px; font-size: 0.85em; color: #e74c3c; min-height: 1.2em; }
-        .toggle { text-align: center; margin-top: 15px; font-size: 0.9em; color: #3788d8; cursor: pointer; }
+        h2 { margin-top: 0; color: #333; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 10px; }
+        button:hover { background: #2a6dbd; }
+        .msg { margin-top: 15px; font-size: 0.85em; color: #e74c3c; min-height: 1.5em; text-align: center; }
+        .toggle { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -18,7 +20,10 @@
 <div class="auth-container">
     <h2 id="title">ログイン</h2>
     
-    <input type="text" id="nickname" placeholder="ニックネーム" style="display:none;">
+    <div id="signupFields" style="display: none;">
+        <input type="text" id="nickname" placeholder="ニックネーム（例：田中）">
+    </div>
+
     <input type="email" id="email" placeholder="メールアドレス">
     
     <button id="btn" onclick="handleAuth()">カレンダーを開く</button>
@@ -28,42 +33,65 @@
 </div>
 
 <script>
-    // ※あなたのSupabase情報を入れてください
+    // ✅ あなたのSupabase情報をここに貼り付けてください
     const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-    const SUPABASE_KEY = "YOUR_ANON_KEY"; 
+    const SUPABASE_KEY = "あなたのanonキー"; 
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let isSignUp = false;
 
+    // 🔄 画面の「ログイン」と「新規登録」を切り替える関数
     function toggleMode() {
         isSignUp = !isSignUp;
-        document.getElementById('title').innerText = isSignUp ? "新規登録" : "ログイン";
-        document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
-        document.getElementById('toggle').innerText = isSignUp ? "登録済みの方はこちら" : "新規登録はこちら";
+        
+        const title = document.getElementById('title');
+        const btn = document.getElementById('btn');
+        const toggle = document.getElementById('toggle');
+        const signupFields = document.getElementById('signupFields');
+        const msgDiv = document.getElementById('msg');
+
+        // メッセージをクリア
+        msgDiv.innerText = "";
+
+        if (isSignUp) {
+            title.innerText = "新規登録";
+            btn.innerText = "登録して確認メールを送信";
+            toggle.innerText = "登録済みの方はこちら（ログイン）";
+            signupFields.style.display = "block"; // ニックネーム欄を表示
+        } else {
+            title.innerText = "ログイン";
+            btn.innerText = "カレンダーを開く";
+            toggle.innerText = "新規登録はこちら";
+            signupFields.style.display = "none"; // ニックネーム欄を隠す
+        }
     }
 
     async function handleAuth() {
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msgDiv = document.getElementById('msg');
+        msgDiv.style.color = "#e74c3c";
 
         if (!email) { msgDiv.innerText = "メールアドレスを入力してください"; return; }
 
         if (isSignUp) {
-            // 【新規登録：パスワードを自動生成して裏で登録】
-            // 本来はOTP(ワンタイムパスワード)が理想ですが、まずはパスワードなしのSignUpを模倣
+            if (!nickname) { msgDiv.innerText = "ニックネームを入力してください"; return; }
+            
+            // 【新規登録】
             const { error } = await supabase.auth.signUp({
                 email: email,
-                password: "password123", // 共通の仮パスワード（後で変更不要な運用にします）
+                password: "password123", // 共通パスワード
                 options: { data: { nickname: nickname } }
             });
-            if (error) msgDiv.innerText = error.message;
-            else {
+            
+            if (error) {
+                msgDiv.innerText = "エラー: " + error.message;
+            } else {
                 msgDiv.style.color = "green";
-                msgDiv.innerText = "確認メールを送りました。リンクをクリックして承認してください。";
+                msgDiv.innerText = "確認メールを送信しました。メール内のリンクをクリックして承認してください。";
             }
         } else {
-            // 【ログイン：メアドと共通パスワードで実行】
+            // 【ログイン】
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: email,
                 password: "password123"
@@ -72,7 +100,7 @@
             if (error) {
                 msgDiv.innerText = "登録が見つからないか、メール承認が終わっていません。";
             } else {
-                // 成功：カレンダーへ（URLにメアドを付けて飛ばす）
+                // 成功：カレンダーへ（emailを付けて飛ばす）
                 window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`;
             }
         }
