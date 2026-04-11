@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ボランティア認証</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; padding-top: 50px; background: #f4f7f6; }
+        .auth-container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 350px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .msg { margin-top: 15px; font-size: 0.85em; color: #e74c3c; min-height: 1.2em; }
+        .toggle { text-align: center; margin-top: 15px; font-size: 0.9em; color: #3788d8; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="auth-container">
+    <h2 id="title">ログイン</h2>
+    
+    <input type="text" id="nickname" placeholder="ニックネーム" style="display:none;">
+    <input type="email" id="email" placeholder="メールアドレス">
+    
+    <button id="btn" onclick="handleAuth()">カレンダーを開く</button>
+    <div id="msg" class="msg"></div>
+    
+    <div class="toggle" onclick="toggleMode()" id="toggle">新規登録はこちら</div>
+</div>
+
+<script>
+    // ※あなたのSupabase情報を入れてください
+    const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+    const SUPABASE_KEY = "YOUR_ANON_KEY"; 
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let isSignUp = false;
+
+    function toggleMode() {
+        isSignUp = !isSignUp;
+        document.getElementById('title').innerText = isSignUp ? "新規登録" : "ログイン";
+        document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
+        document.getElementById('toggle').innerText = isSignUp ? "登録済みの方はこちら" : "新規登録はこちら";
+    }
+
+    async function handleAuth() {
+        const email = document.getElementById('email').value;
+        const nickname = document.getElementById('nickname').value;
+        const msgDiv = document.getElementById('msg');
+
+        if (!email) { msgDiv.innerText = "メールアドレスを入力してください"; return; }
+
+        if (isSignUp) {
+            // 【新規登録：パスワードを自動生成して裏で登録】
+            // 本来はOTP(ワンタイムパスワード)が理想ですが、まずはパスワードなしのSignUpを模倣
+            const { error } = await supabase.auth.signUp({
+                email: email,
+                password: "password123", // 共通の仮パスワード（後で変更不要な運用にします）
+                options: { data: { nickname: nickname } }
+            });
+            if (error) msgDiv.innerText = error.message;
+            else {
+                msgDiv.style.color = "green";
+                msgDiv.innerText = "確認メールを送りました。リンクをクリックして承認してください。";
+            }
+        } else {
+            // 【ログイン：メアドと共通パスワードで実行】
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: "password123"
+            });
+
+            if (error) {
+                msgDiv.innerText = "登録が見つからないか、メール承認が終わっていません。";
+            } else {
+                // 成功：カレンダーへ（URLにメアドを付けて飛ばす）
+                window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`;
+            }
+        }
+    }
+</script>
+</body>
+</html>
