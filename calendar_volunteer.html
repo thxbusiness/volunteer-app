@@ -4,23 +4,23 @@
     <meta charset="UTF-8">
     <title>対応可能時間登録</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #333; margin-top: 30px; }
-        .admin-controls { text-align: center; margin-bottom: 10px; display: flex; justify-content: center; gap: 15px; }
-        .btn { padding: 12px 24px; font-size: 0.95rem; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #3788d8; color: white; }
-        #user-display { text-align: center; margin-bottom: 20px; font-size: 1.1rem; padding: 10px; background: #fff; border-radius: 8px; }
+        .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; }
+        .btn { padding: 12px 24px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #3788d8; color: white; text-decoration: none; }
+        #user-display { text-align: center; margin-bottom: 20px; font-size: 1.2rem; }
         #user-name { font-weight: bold; color: #3788d8; }
-        #qr-container { display: none; text-align: center; margin-top: 20px; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
 
+<div id="debug-vid" style="font-size:10px; color:gray; text-align:right;"></div>
+
 <div class="admin-controls">
-    <button id="qr-btn" class="btn" style="background: #28a745;">管理者用QRコードを表示</button>
-    <a id="admin-list-btn" class="btn" href="#" style="text-decoration: none;">🤝 成立済み契約一覧を確認</a>
+    <a href="#" class="btn" style="background: #28a745;">管理者用QRを表示</a>
+    <a href="#" class="btn">契約一覧を確認</a>
 </div>
 
 <div id="user-display">
@@ -29,75 +29,34 @@
 
 <div id="calendar"></div>
 
-<div id="qr-container">
-    <div id="qrcode" style="display: inline-block;"></div>
-    <p>このQRを管理者に提示してください</p>
-    <button onclick="document.getElementById('qr-container').style.display='none'" style="color:red; border:none; background:none; cursor:pointer;">[閉じる]</button>
-</div>
-
 <script>
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+const supabase = window.supabase.createClient(SUPABASE_URL, API_KEY);
 
-let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid");
+let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 
 document.addEventListener('DOMContentLoaded', async () => {
     initCalendar();
-    // 画面上に現在のIDを表示（デバッグ用）
-    const debugInfo = document.createElement('div');
-    debugInfo.id = "debug-vid";
-    debugInfo.style = "font-size:12px; color:gray; padding:10px;";
-    debugInfo.innerText = "現在のID: " + (VOLUNTEER_ID || "未取得");
-    document.body.prepend(debugInfo);
-
-    await loadUserProfile();
+    loadEvents(); // URLのIDで即読み込み
+    await loadUserProfile(); // 名前を後から取得
 });
 
 async function loadUserProfile() {
     const nameDisplay = document.getElementById('user-name');
-    
-    // 1. 最初は何も出さないか、控えめな表示にする
-    nameDisplay.innerText = "確認中...";
+    const { data: { user } } = await supabase.auth.getUser();
 
-    try {
-        const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
+    if (!user) {
+        nameDisplay.innerText = "ゲスト";
+        return;
+    }
 
-        // ログインしていない場合
-        if (!userRes.ok) {
-            nameDisplay.innerText = "ゲストさん";
-            console.warn("Auth session not found.");
-            return;
-        }
-
-        const authUser = await userRes.json();
-        const uid = authUser.id;
-
-        // 2. ユーザー情報を取得
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-
-        if (data && data.length > 0) {
-            // 3. ここで確実に名前に書き換える
-            const nickname = data[0].nickname || "ボランティア";
-            nameDisplay.innerText = nickname + " さん";
-            
-            if (data[0].volunteer_id) {
-                VOLUNTEER_ID = data[0].volunteer_id;
-                const debugInfo = document.getElementById('debug-vid');
-                if (debugInfo) debugInfo.innerText = "現在のID: " + VOLUNTEER_ID;
-            }
-            loadEvents();
-        } else {
-            nameDisplay.innerText = "名簿未登録";
-        }
-    } catch (e) {
-        console.error("Profile Load Error:", e);
-        nameDisplay.innerText = "エラー";
+    const { data } = await supabase.from('users').select('nickname').eq('id', user.id).single();
+    if (data) {
+        nameDisplay.innerText = data.nickname;
+    } else {
+        nameDisplay.innerText = "ゲスト";
     }
 }
 
@@ -107,93 +66,39 @@ function initCalendar() {
         initialView: 'timeGridWeek',
         locale: 'ja',
         selectable: true,
-        editable: true, // ドラッグ移動を許可
+        editable: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
-        
-        // 1. 新規作成（カレンダーをドラッグして範囲選択したとき）
-        select: async function(info) {
-            if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") {
-                return alert("IDが読み込めていないため保存できません。");
-            }
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
-                method: "POST",
-                headers: { 
-                    "apikey": API_KEY, 
-                    "Authorization": `Bearer ${API_KEY}`, 
-                    "Content-Type": "application/json" 
-                },
-                body: JSON.stringify({
-                    volunteer_id: VOLUNTEER_ID,
-                    start_time: info.startStr,
-                    end_time: info.endStr,
-                    booked: false
-                })
-            });
-            if (res.ok) loadEvents();
+        select: async (info) => {
+            const res = await supabase.from('availability').insert([
+                { volunteer_id: VOLUNTEER_ID, start_time: info.startStr, end_time: info.endStr, booked: false }
+            ]);
+            if (!res.error) loadEvents();
             calendar.unselect();
         },
-
-        // 2. ドラッグ移動やサイズ変更をしたとき（更新）
-        eventDrop: async function(info) { updateEvent(info.event); },
-        eventResize: async function(info) { updateEvent(info.event); },
-
-        // 3. ブロックをクリックしたとき（削除）
-        eventClick: async function(info) {
-            if (confirm("この予定を削除しますか？")) {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${info.event.id}`, {
-                    method: "DELETE",
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-                });
-                if (res.ok) info.event.remove();
+        eventClick: async (info) => {
+            if (confirm("削除しますか？")) {
+                const res = await supabase.from('availability').delete().eq('id', info.event.id);
+                if (!res.error) info.event.remove();
             }
         }
     });
     calendar.render();
 }
 
-// ★重要：上の eventDrop / eventResize で使う「更新用」の関数も近くに貼ってください
-async function updateEvent(event) {
-    await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
-        method: "PATCH", 
-        headers: { 
-            "apikey": API_KEY, 
-            "Authorization": `Bearer ${API_KEY}`, 
-            "Content-Type": "application/json" 
-        },
-        body: JSON.stringify({
-            start_time: event.startStr,
-            end_time: event.endStr
-        })
-    });
-}
-
 async function loadEvents() {
-    if (!VOLUNTEER_ID) return;
-    
-    // データを取得する際のクエリを確認
-    const url = `${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`;
-    console.log("読み込み中: ", url);
-
-    const res = await fetch(url, {
-        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-    });
-    
-    if (!res.ok) {
-        console.error("読み込みエラー:", res.status);
-        return;
-    }
-
-    const data = await res.json();
-    calendar.removeAllEvents();
-    data.forEach(item => {
-        calendar.addEvent({
-            id: item.id,
-            start: item.start_time,
-            end: item.end_time,
-            title: item.booked ? "予約済み" : "対応可能",
-            backgroundColor: item.booked ? "#999" : "#3788d8"
+    const { data } = await supabase.from('availability').select('*').eq('volunteer_id', VOLUNTEER_ID);
+    if (data) {
+        calendar.removeAllEvents();
+        data.forEach(item => {
+            calendar.addEvent({
+                id: item.id,
+                start: item.start_time,
+                end: item.end_time,
+                title: item.booked ? "予約済み" : "対応可能",
+                backgroundColor: item.booked ? "#999" : "#3788d8"
+            });
         });
-    });
+    }
 }
 </script>
 </body>

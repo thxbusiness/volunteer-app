@@ -17,27 +17,27 @@
 
 <div class="auth-container">
     <h2 id="title">ログイン</h2>
-    
     <div id="nickname-area" style="display: none;">
         <input type="text" id="nickname" placeholder="ニックネーム（例：田中）">
     </div>
     <input type="email" id="email" placeholder="メールアドレス">
-    
     <button id="main-btn">カレンダーを開く</button>
     <div id="msg" class="error-msg"></div>
-    
     <button id="toggle-btn" class="toggle-btn">新規登録はこちら</button>
 </div>
 
 <script>
     const S_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
     const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+    const supabaseClient = supabase.createClient(S_URL, S_KEY);
 
-    let supabaseClient;
-    try {
-        supabaseClient = supabase.createClient(S_URL, S_KEY);
-    } catch (e) {
-        document.getElementById('msg').innerText = "設定エラー：URLかキーが正しくありません。";
+    // URLのvidを記憶する
+    const urlParams = new URLSearchParams(window.location.search);
+    let vid = urlParams.get('vid');
+    if (vid) {
+        localStorage.setItem('temp_vid', vid);
+    } else {
+        vid = localStorage.getItem('temp_vid') || "A001"; // デフォルトA001
     }
 
     let isSignUp = false;
@@ -54,42 +54,26 @@
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msg = document.getElementById('msg');
-        const urlParams = new URLSearchParams(window.location.search);
-        const vid = urlParams.get('vid') || "IDなし"; 
 
-        msg.innerText = "処理中...";
-        msg.style.color = "#333";
-
-        if (!email) { msg.innerText = "メールアドレスを入力してください"; msg.style.color = "red"; return; }
+        if (!email) { msg.innerText = "メールアドレスを入力してください"; return; }
 
         if (isSignUp) {
-            if (!nickname) { msg.innerText = "ニックネームを入力してください"; msg.style.color = "red"; return; }
+            if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
             const { error } = await supabaseClient.auth.signUp({
                 email: email, 
                 password: "password123", 
                 options: { data: { nickname: nickname, volunteer_id: vid } }
             });
-            if (error) { msg.innerText = error.message; msg.style.color = "red"; }
-            else { msg.style.color = "green"; msg.innerText = "承認メールを送りました。リンクをクリックしてください。"; }
+            if (error) { msg.innerText = error.message; }
+            else { msg.style.color = "green"; msg.innerText = "認証メールを送信しました。"; }
         } else {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ 
-                email: email, 
-                password: "password123" 
-            });
-
-            if (error) { 
-                msg.innerText = "エラー: " + error.message; 
-            } else { 
-                // ★ 修正：もしvidが「IDなし」なら、とりあえず A001 にする
-                let finalVid = vid;
-                if (vid === "IDなし" || !vid) {
-                    finalVid = "A001"; 
-                }
-                
+            const { error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
+            if (error) { msg.innerText = "エラー: " + error.message; }
+            else {
                 msg.innerText = "ログイン成功！";
                 setTimeout(() => {
-                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(finalVid)}`; 
-                }, 800); 
+                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(vid)}`;
+                }, 800);
             }
         }
     });
