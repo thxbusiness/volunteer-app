@@ -1,3 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>対応可能時間登録</title>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
+        #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; margin-top: 30px; }
+        .admin-controls { text-align: center; margin-bottom: 10px; display: flex; justify-content: center; gap: 15px; }
+        .btn { padding: 12px 24px; font-size: 0.95rem; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #3788d8; color: white; }
+        #user-display { text-align: center; margin-bottom: 20px; font-size: 1.1rem; padding: 10px; background: #fff; border-radius: 8px; }
+        #user-name { font-weight: bold; color: #3788d8; }
+        #qr-container { display: none; text-align: center; margin-top: 20px; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="admin-controls">
+    <button id="qr-btn" class="btn" style="background: #28a745;">管理者用QRコードを表示</button>
+    <a id="admin-list-btn" class="btn" href="#" style="text-decoration: none;">🤝 成立済み契約一覧を確認</a>
+</div>
+
+<div id="user-display">
+    <span id="user-name">読み込み中...</span> さん、こんにちは！
+</div>
+
+<div id="calendar"></div>
+
+<div id="qr-container">
+    <div id="qrcode" style="display: inline-block;"></div>
+    <p>このQRを管理者に提示してください</p>
+    <button onclick="document.getElementById('qr-container').style.display='none'" style="color:red; border:none; background:none; cursor:pointer;">[閉じる]</button>
+</div>
+
 <script>
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
@@ -58,3 +95,5 @@ function initCalendar() {
 
 // （loadEvents 関数などは以前のまま）
 </script>
+</body>
+</html>
