@@ -39,46 +39,72 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
+// URLから vid（A001など）を取得
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid");
 let calendar;
 
-// ページ読み込み時の処理
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. まずカレンダーを準備（表示はまだ）
+    // 1. カレンダーを先に初期化（データがなくても枠は出す）
     initCalendar();
     
-    // 2. ログイン状態の確認
+    // 2. ユーザー情報を読み込む
+    await loadUserProfile();
+});
+
+async function loadUserProfile() {
+    const nameDisplay = document.getElementById('user-name');
+    
     try {
+        // 現在のログインセッションを取得
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+            headers: { 
+                "apikey": API_KEY, 
+                "Authorization": `Bearer ${API_KEY}` 
+            }
         });
 
-        // 通信が成功し、ユーザーが存在する場合のみ続行
-        if (userRes.ok) {
-            const user = await userRes.json();
-            
-            // 3. DBから名前を取得
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
-                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-            });
-            const data = await res.json();
-            
-            if (data && data.length > 0) {
-                document.getElementById('user-name').innerText = data[0].nickname || "ボランティア";
-                if (!VOLUNTEER_ID) VOLUNTEER_ID = data[0].volunteer_id;
-                
-                // 4. 全て揃ったらデータを読み込んでカレンダーを表示
-                loadEvents();
-            }
-        } else {
-            // ★ここがポイント：ログインしていないと「確定」した場合のみ飛ばす
-            console.warn("ログインが確認できませんでした");
-            // window.location.href = "index.html"; // 一旦コメントアウトして、飛ばないかテストするのも手です
+        if (!userRes.ok) {
+            nameDisplay.innerText = "ゲスト";
+            return;
         }
-    } catch (e) {
-        console.error("Auth check failed:", e);
+
+        const authUser = await userRes.json();
+        const uid = authUser.id; // これが Supabase Auth の ID
+
+        // usersテーブルから、authのIDと一致する行を探す
+        // id が text型の場合でも、この eq フィルタで照合可能です
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
+            headers: { 
+                "apikey": API_KEY, 
+                "Authorization": `Bearer ${API_KEY}` 
+            }
+        });
+        
+        const data = await res.json();
+        
+        if (data && data.length > 0) {
+            const user = data[0];
+            nameDisplay.innerText = user.nickname || "ボランティア";
+            
+            // もしURLに vid がなければ、DBから取得した値を使う
+            if (!VOLUNTEER_ID) {
+                VOLUNTEER_ID = user.volunteer_id;
+            }
+            
+            // 自分のイベントを読み込み
+            loadEvents();
+        } else {
+            // テーブルにデータがない場合
+            nameDisplay.innerText = "ユーザー情報未登録";
+            console.error("usersテーブルに該当するIDが見つかりません:", uid);
+        }
+    } catch (error) {
+        console.error("Profile Load Error:", error);
+        nameDisplay.innerText = "エラー";
     }
-});
+}
+
+// --- 以下、カレンダー表示用の共通関数 ---
 
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
@@ -88,12 +114,44 @@ function initCalendar() {
         selectable: true,
         editable: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
-        // ... その他の設定
+        select: async function(info) {
+            if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") {
+                return alert("ボランティアIDが不明です。再ログインしてください。");
+            }
+            // 登録処理...
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+                method: "POST",
+                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    volunteer_id: VOLUNTEER_ID,
+                    start_time: info.startStr,
+                    end_time: info.endStr,
+                    booked: false
+                })
+            });
+            if (res.ok) loadEvents();
+        }
     });
     calendar.render();
 }
 
-// （loadEvents 関数などは以前のまま）
+async function loadEvents() {
+    if (!VOLUNTEER_ID) return;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+    });
+    const data = await res.json();
+    calendar.removeAllEvents();
+    data.forEach(item => {
+        calendar.addEvent({
+            id: item.id,
+            start: item.start_time,
+            end: item.end_time,
+            title: item.booked ? "予約済み" : "対応可能",
+            color: item.booked ? "#999" : "#3788d8"
+        });
+    });
+}
 </script>
 </body>
 </html>
