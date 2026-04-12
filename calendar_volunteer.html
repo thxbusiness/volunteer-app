@@ -56,30 +56,48 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadUserProfile() {
     const nameDisplay = document.getElementById('user-name');
+    
+    // 1. 最初は何も出さないか、控えめな表示にする
+    nameDisplay.innerText = "確認中...";
+
     try {
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
 
-        if (userRes.ok) {
-            const authUser = await userRes.json();
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${authUser.id}`, {
-                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-            });
-            const data = await res.json();
-            if (data && data.length > 0) {
-                nameDisplay.innerText = data[0].nickname;
-                // DBに登録されているIDがあれば上書き
-                if (data[0].volunteer_id) {
-                    VOLUNTEER_ID = data[0].volunteer_id;
-                    document.getElementById('debug-vid').innerText = "現在のID: " + VOLUNTEER_ID;
-                }
-            }
+        // ログインしていない場合
+        if (!userRes.ok) {
+            nameDisplay.innerText = "ゲストさん";
+            console.warn("Auth session not found.");
+            return;
         }
-        // IDが決まったらイベントを読み込む
-        loadEvents();
+
+        const authUser = await userRes.json();
+        const uid = authUser.id;
+
+        // 2. ユーザー情報を取得
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+            // 3. ここで確実に名前に書き換える
+            const nickname = data[0].nickname || "ボランティア";
+            nameDisplay.innerText = nickname + " さん";
+            
+            if (data[0].volunteer_id) {
+                VOLUNTEER_ID = data[0].volunteer_id;
+                const debugInfo = document.getElementById('debug-vid');
+                if (debugInfo) debugInfo.innerText = "現在のID: " + VOLUNTEER_ID;
+            }
+            loadEvents();
+        } else {
+            nameDisplay.innerText = "名簿未登録";
+        }
     } catch (e) {
         console.error("Profile Load Error:", e);
+        nameDisplay.innerText = "エラー";
     }
 }
 
