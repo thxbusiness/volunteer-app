@@ -51,42 +51,44 @@ async function loadUserProfile() {
     const nameDisplay = document.getElementById('user-name');
     
     try {
-        // 1. Supabase Auth から現在のユーザー情報を取得
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
 
         if (!userRes.ok) {
-            nameDisplay.innerText = "未ログイン";
+            nameDisplay.innerText = "ゲスト（未ログイン）";
             return;
         }
 
         const authUser = await userRes.json();
-        const uid = authUser.id; // これが照合の鍵となるIDです
-        console.log("【デバッグ】ログイン中のUID:", uid);
+        const uid = authUser.id;
 
-        // 2. usersテーブルを検索
-        // idがtext型の場合、念のため trim() 的な挙動を期待して eq で検索します
+        // 403エラー対策：fetchの前にログを出し、エラー時も「ゲスト」に落とさない
         const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+            headers: { 
+                "apikey": API_KEY, 
+                "Authorization": `Bearer ${API_KEY}` 
+            }
         });
-        
+
+        if (res.status === 403) {
+            nameDisplay.innerText = "権限エラー(403)";
+            console.error("【原因】SupabaseのRLS設定により、usersテーブルへのアクセスが拒否されました。Table EditorからRLSをDisableにするか、Policyを設定してください。");
+            return;
+        }
+
         const data = await res.json();
-        console.log("【デバッグ】usersテーブルからの取得結果:", data);
         
         if (data && data.length > 0) {
-            const user = data[0];
-            nameDisplay.innerText = user.nickname || "ボランティア";
-            if (!VOLUNTEER_ID) VOLUNTEER_ID = user.volunteer_id;
+            nameDisplay.innerText = data[0].nickname || "ボランティア";
+            if (!VOLUNTEER_ID) VOLUNTEER_ID = data[0].volunteer_id;
             loadEvents();
         } else {
-            // ここで「ゲスト」にならずに、原因を表示させます
-            nameDisplay.innerText = "ユーザー名未登録";
-            console.error("【重要】usersテーブルにこのIDのデータが存在しません。IDをコピーしてDBを確認してください:", uid);
+            nameDisplay.innerText = "名簿に未登録";
         }
     } catch (error) {
         console.error("Profile Load Error:", error);
-        nameDisplay.innerText = "通信エラー";
+        nameDisplay.innerText = "接続エラー";
     }
 }
 
