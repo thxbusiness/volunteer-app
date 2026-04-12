@@ -89,10 +89,14 @@ function initCalendar() {
         initialView: 'timeGridWeek',
         locale: 'ja',
         selectable: true,
+        editable: true, // ドラッグ移動を許可
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+        
+        // 1. 新規作成（カレンダーをドラッグして範囲選択したとき）
         select: async function(info) {
-            if (!VOLUNTEER_ID) return alert("IDが特定できないため保存できません。URLに vid=A001 があるか確認してください。");
-
+            if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") {
+                return alert("IDが読み込めていないため保存できません。");
+            }
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
                 headers: { 
@@ -101,22 +105,48 @@ function initCalendar() {
                     "Content-Type": "application/json" 
                 },
                 body: JSON.stringify({
-                    volunteer_id: VOLUNTEER_ID, // ここが A001 になっている必要があります
+                    volunteer_id: VOLUNTEER_ID,
                     start_time: info.startStr,
                     end_time: info.endStr,
                     booked: false
                 })
             });
+            if (res.ok) loadEvents();
+            calendar.unselect();
+        },
 
-            if (res.ok) {
-                loadEvents(); // 保存できたら即座に再描画
-            } else {
-                const err = await res.json();
-                alert("保存に失敗しました: " + err.message);
+        // 2. ドラッグ移動やサイズ変更をしたとき（更新）
+        eventDrop: async function(info) { updateEvent(info.event); },
+        eventResize: async function(info) { updateEvent(info.event); },
+
+        // 3. ブロックをクリックしたとき（削除）
+        eventClick: async function(info) {
+            if (confirm("この予定を削除しますか？")) {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${info.event.id}`, {
+                    method: "DELETE",
+                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+                });
+                if (res.ok) info.event.remove();
             }
         }
     });
     calendar.render();
+}
+
+// ★重要：上の eventDrop / eventResize で使う「更新用」の関数も近くに貼ってください
+async function updateEvent(event) {
+    await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
+        method: "PATCH", 
+        headers: { 
+            "apikey": API_KEY, 
+            "Authorization": `Bearer ${API_KEY}`, 
+            "Content-Type": "application/json" 
+        },
+        body: JSON.stringify({
+            start_time: event.startStr,
+            end_time: event.endStr
+        })
+    });
 }
 
 async function loadEvents() {
