@@ -56,24 +56,20 @@ async function loadUserProfile() {
         });
 
         if (!userRes.ok) {
-            nameDisplay.innerText = "ゲスト（未ログイン）";
+            nameDisplay.innerText = "未ログイン";
             return;
         }
 
         const authUser = await userRes.json();
         const uid = authUser.id;
 
-        // 403エラー対策：fetchの前にログを出し、エラー時も「ゲスト」に落とさない
+        // データの取得
         const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
-            headers: { 
-                "apikey": API_KEY, 
-                "Authorization": `Bearer ${API_KEY}` 
-            }
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
 
         if (res.status === 403) {
-            nameDisplay.innerText = "権限エラー(403)";
-            console.error("【原因】SupabaseのRLS設定により、usersテーブルへのアクセスが拒否されました。Table EditorからRLSをDisableにするか、Policyを設定してください。");
+            nameDisplay.innerText = "権限エラー(RLSオフにしてください)";
             return;
         }
 
@@ -81,13 +77,15 @@ async function loadUserProfile() {
         
         if (data && data.length > 0) {
             nameDisplay.innerText = data[0].nickname || "ボランティア";
+            // vidを更新
             if (!VOLUNTEER_ID) VOLUNTEER_ID = data[0].volunteer_id;
             loadEvents();
         } else {
-            nameDisplay.innerText = "名簿に未登録";
+            nameDisplay.innerText = "名簿未登録";
+            console.log("このUIDをusersテーブルに登録してください:", uid);
         }
     } catch (error) {
-        console.error("Profile Load Error:", error);
+        console.error("Error:", error);
         nameDisplay.innerText = "接続エラー";
     }
 }
