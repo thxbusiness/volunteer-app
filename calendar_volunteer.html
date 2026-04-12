@@ -39,12 +39,18 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// URLから vid (A001等) を取得
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid");
 let calendar;
 
 document.addEventListener('DOMContentLoaded', async () => {
     initCalendar();
+    // 画面上に現在のIDを表示（デバッグ用）
+    const debugInfo = document.createElement('div');
+    debugInfo.id = "debug-vid";
+    debugInfo.style = "font-size:12px; color:gray; padding:10px;";
+    debugInfo.innerText = "現在のID: " + (VOLUNTEER_ID || "未取得");
+    document.body.prepend(debugInfo);
+
     await loadUserProfile();
 });
 
@@ -55,33 +61,25 @@ async function loadUserProfile() {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
 
-        if (!userRes.ok) {
-            nameDisplay.innerText = "ゲスト（ログインなし）";
-            return;
-        }
-
-        const authUser = await userRes.json();
-        const uid = authUser.id;
-
-        // usersテーブルから nickname と volunteer_id を取得
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-
-        if (data && data.length > 0) {
-            const user = data[0];
-            nameDisplay.innerText = user.nickname || "ボランティア";
-            // DBに保存されている volunteer_id を優先
-            if (user.volunteer_id) {
-                VOLUNTEER_ID = user.volunteer_id;
+        if (userRes.ok) {
+            const authUser = await userRes.json();
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${authUser.id}`, {
+                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+            });
+            const data = await res.json();
+            if (data && data.length > 0) {
+                nameDisplay.innerText = data[0].nickname;
+                // DBに登録されているIDがあれば上書き
+                if (data[0].volunteer_id) {
+                    VOLUNTEER_ID = data[0].volunteer_id;
+                    document.getElementById('debug-vid').innerText = "現在のID: " + VOLUNTEER_ID;
+                }
             }
-            loadEvents();
-        } else {
-            nameDisplay.innerText = "名簿未登録";
         }
+        // IDが決まったらイベントを読み込む
+        loadEvents();
     } catch (e) {
-        nameDisplay.innerText = "エラー";
+        console.error("Profile Load Error:", e);
     }
 }
 
@@ -92,23 +90,18 @@ function initCalendar() {
         locale: 'ja',
         selectable: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
-        
-        // ★重要：ブロックを選択して保存する処理
         select: async function(info) {
-            if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") {
-                return alert("ボランティアIDが不明なため、保存できません。再ログインしてください。");
-            }
+            if (!VOLUNTEER_ID) return alert("IDが特定できないため保存できません。URLに vid=A001 があるか確認してください。");
 
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
                 headers: { 
                     "apikey": API_KEY, 
                     "Authorization": `Bearer ${API_KEY}`, 
-                    "Content-Type": "application/json",
-                    "Prefer": "return=minimal" 
+                    "Content-Type": "application/json" 
                 },
                 body: JSON.stringify({
-                    volunteer_id: VOLUNTEER_ID,
+                    volunteer_id: VOLUNTEER_ID, // ここが A001 になっている必要があります
                     start_time: info.startStr,
                     end_time: info.endStr,
                     booked: false
@@ -116,13 +109,11 @@ function initCalendar() {
             });
 
             if (res.ok) {
-                loadEvents(); // 保存できたら再読み込み
+                loadEvents(); // 保存できたら即座に再描画
             } else {
                 const err = await res.json();
-                console.error("Save Error:", err);
-                alert("保存に失敗しました: " + (err.message || "不明なエラー"));
+                alert("保存に失敗しました: " + err.message);
             }
-            calendar.unselect();
         }
     });
     calendar.render();
@@ -130,25 +121,31 @@ function initCalendar() {
 
 async function loadEvents() {
     if (!VOLUNTEER_ID) return;
-    try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-        
-        calendar.removeAllEvents();
-        data.forEach(item => {
-            calendar.addEvent({
-                id: item.id,
-                start: item.start_time,
-                end: item.end_time,
-                title: item.booked ? "予約済み" : "対応可能",
-                backgroundColor: item.booked ? "#999" : "#3788d8"
-            });
-        });
-    } catch (e) {
-        console.error("Load Events Error:", e);
+    
+    // データを取得する際のクエリを確認
+    const url = `${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`;
+    console.log("読み込み中: ", url);
+
+    const res = await fetch(url, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+    });
+    
+    if (!res.ok) {
+        console.error("読み込みエラー:", res.status);
+        return;
     }
+
+    const data = await res.json();
+    calendar.removeAllEvents();
+    data.forEach(item => {
+        calendar.addEvent({
+            id: item.id,
+            start: item.start_time,
+            end: item.end_time,
+            title: item.booked ? "予約済み" : "対応可能",
+            backgroundColor: item.booked ? "#999" : "#3788d8"
+        });
+    });
 }
 </script>
 </body>
