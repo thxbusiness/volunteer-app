@@ -124,11 +124,17 @@ async function loadEvents() {
     });
     const data = await res.json();
     calendar.removeAllEvents();
+    
     data.forEach(item => {
+        // 時差ボケを防ぐための処理
+        // DBの「2024-04-13T11:00:00」を、そのまま「11時」としてカレンダーに置く
+        const startTime = item.start_time.split('+')[0]; // タイムゾーン情報をカット
+        const endTime = item.end_time.split('+')[0];
+
         calendar.addEvent({
             id: item.id,
-            start: item.start_time,
-            end: item.end_time,
+            start: startTime,
+            end: endTime,
             title: item.booked ? "予約済み" : "対応可能",
             backgroundColor: item.booked ? "#999" : "#3788d8"
         });
