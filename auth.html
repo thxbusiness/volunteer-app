@@ -30,11 +30,9 @@
 </div>
 
 <script>
-    // ⚠️ 【設定箇所】ここだけを書き換えてください
     const S_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
     const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-    // --- ここから下は一切触らなくて大丈夫です ---
     let supabaseClient;
     try {
         supabaseClient = supabase.createClient(S_URL, S_KEY);
@@ -44,7 +42,6 @@
 
     let isSignUp = false;
 
-    // ボタンの動作設定
     document.getElementById('toggle-btn').addEventListener('click', () => {
         isSignUp = !isSignUp;
         document.getElementById('nickname-area').style.display = isSignUp ? 'block' : 'none';
@@ -57,11 +54,8 @@
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msg = document.getElementById('msg');
-
-        // ★ ここから追加：URLから vid (例: A001) を取得する
         const urlParams = new URLSearchParams(window.location.search);
         const vid = urlParams.get('vid') || "IDなし"; 
-        // ★ ここまで追加
 
         msg.innerText = "処理中...";
         msg.style.color = "#333";
@@ -73,15 +67,19 @@
             const { error } = await supabaseClient.auth.signUp({
                 email: email, 
                 password: "password123", 
-                // ★ ここを書き換え：volunteer_id: vid を追加
                 options: { data: { nickname: nickname, volunteer_id: vid } }
             });
             if (error) { msg.innerText = error.message; msg.style.color = "red"; }
             else { msg.style.color = "green"; msg.innerText = "承認メールを送りました。リンクをクリックしてください。"; }
         } else {
             const { error } = await supabaseClient.auth.signInWithPassword({ email: email, password: "password123" });
-            if (error) { msg.innerText = "登録がないか、承認が終わっていません。"; msg.style.color = "red"; }
-            else { window.location.href = `calendar_volunteer.html?email=${encodeURIComponent(email)}`; }
+            if (error) { 
+                msg.innerText = "登録がないか、承認が終わっていません。"; 
+                msg.style.color = "red"; 
+            } else { 
+                // ログイン成功時、vidを保持したまま遷移
+                window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(vid)}`; 
+            }
         }
     });
 </script>
