@@ -25,13 +25,13 @@
 <body>
 
 <div class="admin-controls">
-    <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
-    <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
-</div>
+        <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
+        <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
+    </div>
 
-<div id="user-display" style="text-align: center; margin: 10px 0 20px 0;">
-    <span id="user-name" style="font-weight: bold; font-size: 1.2rem; color: #3788d8;">読み込み中...</span> さん、こんにちは！
-</div>
+    <div id="user-display" style="text-align: center; margin-bottom: 20px;">
+        <span id="user-name" style="font-weight: bold; font-size: 1.2rem; color: #3788d8;">読み込み中...</span> さん、こんにちは！
+    </div>
 
 <div style="text-align: center;">
     <div id="qr-container" style="display: none;">
@@ -48,23 +48,22 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// --- ここから名前表示用の処理を追加 ---
+// ★ ここから下を貼り付け ★
 async function displayUserProfile() {
     try {
-        // 1. 今のログインユーザーの情報を取得
+        // ログイン中の自分自身の情報を取得
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
         const user = await userRes.json();
         
         if (user && user.id) {
-            // 2. usersテーブルから名前を取得
+            // usersテーブルから自分のニックネームを検索
             const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
                 headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
             });
             const data = await res.json();
             
-            // 3. 画面に反映
             if (data && data[0] && data[0].nickname) {
                 document.getElementById('user-name').innerText = data[0].nickname;
             } else {
@@ -75,8 +74,8 @@ async function displayUserProfile() {
         document.getElementById('user-name').innerText = "ゲスト";
     }
 }
-displayUserProfile(); 
-// --- ここまで追加 ---
+displayUserProfile(); // 実行する
+// ★ 貼り付けここまで ★
 
 const params = new URLSearchParams(location.search);
 const VOLUNTEER_ID = params.get("vid");

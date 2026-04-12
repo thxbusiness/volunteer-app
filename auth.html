@@ -57,6 +57,12 @@
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msg = document.getElementById('msg');
+
+        // ★ ここから追加：URLから vid (例: A001) を取得する
+        const urlParams = new URLSearchParams(window.location.search);
+        const vid = urlParams.get('vid') || "IDなし"; 
+        // ★ ここまで追加
+
         msg.innerText = "処理中...";
         msg.style.color = "#333";
 
@@ -65,7 +71,10 @@
         if (isSignUp) {
             if (!nickname) { msg.innerText = "ニックネームを入力してください"; msg.style.color = "red"; return; }
             const { error } = await supabaseClient.auth.signUp({
-                email: email, password: "password123", options: { data: { nickname: nickname } }
+                email: email, 
+                password: "password123", 
+                // ★ ここを書き換え：volunteer_id: vid を追加
+                options: { data: { nickname: nickname, volunteer_id: vid } }
             });
             if (error) { msg.innerText = error.message; msg.style.color = "red"; }
             else { msg.style.color = "green"; msg.innerText = "承認メールを送りました。リンクをクリックしてください。"; }
