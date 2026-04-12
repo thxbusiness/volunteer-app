@@ -15,189 +15,174 @@
         .btn:hover { opacity: 0.8; }
         
         #qr-btn { background: #28a745; color: white; }
-        #admin-list-btn { background: #3788d8; color: white; text-decoration: none; display: inline-block; line-height: 1.2; }
+        #admin-list-btn { background: #007bff; color: white; text-decoration: none; display: inline-flex; align-items: center; }
         
-        /* QR表示エリア：初期状態を display: none !important; で確実に隠します */
-        #qr-container { display: none !important; margin-top: 20px; background: white; padding: 20px; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        #qrcode { margin: 0 auto; }
+        #qr-container { text-align: center; margin-top: 20px; display: none; }
+        #qrcode { display: inline-block; padding: 10px; background: white; border: 1px solid #ddd; }
+
+        /* 名前表示エリアのスタイル */
+        #user-display { 
+            text-align: center; 
+            margin: 10px 0 20px 0; 
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            border-bottom: 2px solid #3788d8;
+        }
+        #user-name { font-weight: bold; font-size: 1.2rem; color: #3788d8; }
     </style>
 </head>
 <body>
 
-<div class="admin-controls">
-    <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
-    <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
-</div>
+    <h2>対応可能時間登録</h2>
 
-<div id="user-display" style="text-align: center; margin-bottom: 20px;">
-    <span id="user-name" style="font-weight: bold; font-size: 1.2rem; color: #3788d8;">読み込み中...</span> さん、こんにちは！
-</div>
-
-<div style="text-align: center;">
-    <div id="qr-container" style="display: none;">
-        <div id="qrcode"></div>
-        <p style="font-size: 0.8rem; margin-top: 10px; color: #666;">このQRを管理者に提示してください</p>
-        <button onclick="document.getElementById('qr-container').style.setProperty('display', 'none', 'important')" style="color: #e74c3c; border: none; background: none; cursor: pointer; font-size: 0.9rem;">[ 閉じる ]</button>
+    <div class="admin-controls">
+        <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
+        <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
     </div>
-</div>
 
-<h2>ブロックをドラッグして移動や時間の変更ができます</h2>
-<div id="calendar"></div>
+    <div id="user-display">
+        <span id="user-name">読み込み中...</span> さん、こんにちは！
+    </div>
 
-<script>
-const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+    <div id="calendar"></div>
 
-// --- ここから名前表示用の処理を追加 ---
-async function displayUserProfile() {
-    try {
-        // 1. 今ログインしている「自分自身」の情報を取得
-        const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
-        const user = await userRes.json();
-        
-        if (user && user.id) {
-            // 2. usersテーブルから、自分のIDに一致するデータを1件だけ取得
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
+    <div id="qr-container">
+        <h3>管理者用URL (QRコード)</h3>
+        <div id="qrcode"></div>
+        <p style="font-size: 0.8rem; color: #666; margin-top: 10px;">このQRコードを管理者に読み取ってもらってください</p>
+    </div>
+
+    <script>
+    const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+
+    let VOLUNTEER_ID = "";
+
+    // プロフィールと名前を取得して表示する関数
+    async function displayUserProfile() {
+        try {
+            // 1. ログイン中のユーザー情報を取得
+            const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
                 headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
             });
-            const data = await res.json();
+            const user = await userRes.json();
             
-            // 3. 取得したデータを画面に反映（配列の0番目を指定するのがコツです）
-            if (data && data[0] && data[0].nickname) {
-                document.getElementById('user-name').innerText = data[0].nickname;
-            } else {
-                document.getElementById('user-name').innerText = "ボランティア";
-            }
-        }
-    } catch (e) {
-        console.error("プロフィール取得エラー:", e);
-        document.getElementById('user-name').innerText = "ゲスト";
-    }
-}
-
-// 画面が表示されたら実行する
-document.addEventListener('DOMContentLoaded', displayUserProfile);
-// --- ここまで追加 ---
-
-const params = new URLSearchParams(location.search);
-const VOLUNTEER_ID = params.get("vid");
-
-if (VOLUNTEER_ID) {
-    document.getElementById('admin-list-btn').href = `admin.html?vid=${VOLUNTEER_ID}`;
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const calendarEl = document.getElementById('calendar');
-
-    const formatDate = (date) => {
-        const pad = (n) => n < 10 ? '0' + n : n;
-        return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
-    };
-
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        timeZone: 'local', 
-        locale: 'ja',
-        slotDuration: '01:00:00',
-        selectable: true,
-        allDaySlot: false,
-        editable: true,
-        eventStartEditable: true,
-        eventDurationEditable: true,
-
-        select: async function(info) {
-            const startTime = formatDate(info.start);
-            const endTime = formatDate(info.end);
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
-                method: "POST",
-                headers: {
-                    "apikey": API_KEY,
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json",
-                    "Prefer": "return=representation"
-                },
-                body: JSON.stringify({
-                    volunteer_id: VOLUNTEER_ID,
-                    start_time: startTime,
-                    end_time: endTime,
-                    booked: false
-                })
-            });
-            if (res.ok) loadEvents();
-            calendar.unselect();
-        },
-
-        eventChange: async function(info) {
-            const id = info.event.extendedProps.id;
-            const newStart = formatDate(info.event.start);
-            const newEnd = formatDate(info.event.end);
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
-                method: "PATCH",
-                headers: {
-                    "apikey": API_KEY,
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ start_time: newStart, end_time: newEnd })
-            });
-            if (!res.ok) {
-                alert("更新に失敗しました。");
-                info.revert();
-            }
-        },
-
-        eventClick: async function(info) {
-            if(info.event.extendedProps.booked) return alert("予約済みのため操作不可");
-            if(confirm("この枠を削除しますか？")){
-                const id = info.event.extendedProps.id;
-                await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
-                    method: "DELETE",
+            if (user && user.id) {
+                // 2. usersテーブルから名前とvolunteer_idを検索
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
                     headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
                 });
-                info.event.remove();
+                const data = await res.json();
+                
+                // data[0] に本人のレコードが入っている
+                if (data && data[0]) {
+                    document.getElementById('user-name').innerText = data[0].nickname || "ボランティア";
+                    VOLUNTEER_ID = data[0].volunteer_id;
+                    
+                    // IDが取得できたらカレンダーのデータを読み込む
+                    loadEvents();
+                } else {
+                    document.getElementById('user-name').innerText = "未登録ユーザー";
+                }
+            } else {
+                // ログインしていない場合はログイン画面へ
+                window.location.href = "index.html";
+            }
+        } catch (e) {
+            console.error("Profile Error:", e);
+            document.getElementById('user-name').innerText = "ゲスト";
+        }
+    }
+
+    const calendarEl = document.getElementById('calendar');
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        locale: 'ja',
+        selectable: true,
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'timeGridWeek,timeGridDay'
+        },
+        select: async function(info) {
+            if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") {
+                return alert("ボランティアIDが正しく設定されていません。一度ログアウトして再登録してください。");
+            }
+            
+            const title = "対応可能";
+            if (confirm(`${info.startStr} から ${info.endStr} を対応可能時間に設定しますか？`)) {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/volunteer_slots`, {
+                    method: 'POST',
+                    headers: {
+                        "apikey": API_KEY,
+                        "Authorization": `Bearer ${API_KEY}`,
+                        "Content-Type": "application/json",
+                        "Prefer": "return=minimal"
+                    },
+                    body: JSON.stringify({
+                        volunteer_id: VOLUNTEER_ID,
+                        start_time: info.startStr,
+                        end_time: info.endStr,
+                        booked: false
+                    })
+                });
+                if (res.ok) {
+                    alert("登録しました");
+                    loadEvents();
+                } else {
+                    alert("登録に失敗しました");
+                }
             }
         }
     });
 
     async function loadEvents() {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        if (!VOLUNTEER_ID) return;
+        
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/volunteer_slots?volunteer_id=eq.${VOLUNTEER_ID}`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
         const data = await res.json();
+        
         calendar.removeAllEvents();
         data.forEach(item => {
+            // ISO形式の時間をFullCalendarが読みやすい形式に整形
             const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
             const cleanEnd = item.end_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
+            
             calendar.addEvent({
                 id: item.id,
                 start: cleanStart,
                 end: cleanEnd,
                 title: item.booked ? "予約済み" : "対応可能",
-                color: item.booked ? "#999" : "#3788d8",
-                extendedProps: { id: item.id, booked: item.booked }
+                color: item.booked ? "#999" : "#3788d8"
             });
         });
         calendar.render();
     }
 
-    const qrBtn = document.getElementById('qr-btn');
-    qrBtn.addEventListener('click', function() {
-        if (!VOLUNTEER_ID) return alert("vidがありません");
-        const qrContainer = document.getElementById('qr-container');
-        const qrElement = document.getElementById('qrcode');
-        const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}`;
-        
-        // ボタンを押した時だけ display を inline-block に変更
-        qrContainer.style.setProperty('display', 'inline-block', 'important');
-        
-        qrElement.innerHTML = "";
-        new QRCode(qrElement, { text: adminUrl, width: 160, height: 160 });
+    // ページ読み込み時に実行
+    document.addEventListener('DOMContentLoaded', () => {
+        displayUserProfile();
+        calendar.render();
     });
 
-    loadEvents();
-});
-</script>
+    // QRコード生成ボタンの処理
+    document.getElementById('qr-btn').addEventListener('click', function() {
+        if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") return alert("有効なIDがありません");
+        
+        const qrContainer = document.getElementById('qr-container');
+        const qrElement = document.getElementById('qrcode');
+        qrContainer.style.display = 'block';
+        qrElement.innerHTML = "";
+        
+        new QRCode(qrElement, {
+            text: `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}`,
+            width: 128,
+            height: 128
+        });
+    });
+    </script>
 </body>
 </html>
