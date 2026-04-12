@@ -25,13 +25,13 @@
 <body>
 
 <div class="admin-controls">
-        <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
-        <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
-    </div>
+    <button id="qr-btn" class="btn">管理者用QRコードを表示</button>
+    <a id="admin-list-btn" class="btn" href="#">🤝 成立済み契約一覧を確認</a>
+</div>
 
-    <div id="user-display" style="text-align: center; margin-bottom: 20px;">
-        <span id="user-name" style="font-weight: bold; font-size: 1.2rem; color: #3788d8;">読み込み中...</span> さん、こんにちは！
-    </div>
+<div id="user-display" style="text-align: center; margin-bottom: 20px;">
+    <span id="user-name" style="font-weight: bold; font-size: 1.2rem; color: #3788d8;">読み込み中...</span> さん、こんにちは！
+</div>
 
 <div style="text-align: center;">
     <div id="qr-container" style="display: none;">
@@ -48,22 +48,23 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// ★ ここから下を貼り付け ★
+// --- ここから名前表示用の処理を追加 ---
 async function displayUserProfile() {
     try {
-        // ログイン中の自分自身の情報を取得
+        // 1. 今ログインしている「自分自身」の情報を取得
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
         const user = await userRes.json();
         
         if (user && user.id) {
-            // usersテーブルから自分のニックネームを検索
+            // 2. usersテーブルから、自分のIDに一致するデータを1件だけ取得
             const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
                 headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
             });
             const data = await res.json();
             
+            // 3. 取得したデータを画面に反映（配列の0番目を指定するのがコツです）
             if (data && data[0] && data[0].nickname) {
                 document.getElementById('user-name').innerText = data[0].nickname;
             } else {
@@ -71,11 +72,14 @@ async function displayUserProfile() {
             }
         }
     } catch (e) {
+        console.error("プロフィール取得エラー:", e);
         document.getElementById('user-name').innerText = "ゲスト";
     }
 }
-displayUserProfile(); // 実行する
-// ★ 貼り付けここまで ★
+
+// 画面が表示されたら実行する
+document.addEventListener('DOMContentLoaded', displayUserProfile);
+// --- ここまで追加 ---
 
 const params = new URLSearchParams(location.search);
 const VOLUNTEER_ID = params.get("vid");
