@@ -50,145 +50,94 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// グローバル変数の定義
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid");
 
-document.addEventListener('DOMContentLoaded', async function() {
-    
-    // ユーザー情報の取得と表示
-    async function displayUserProfile() {
-        try {
-            const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-            });
-            const user = await userRes.json();
-            
-            if (user && user.id) {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-                });
-                const data = await res.json();
-                
-                if (data && data[0]) {
-                    document.getElementById('user-name').innerText = data[0].nickname || "ボランティア";
-                    // URLにvidがない場合、DBから取得したものをセット
-                    if(!VOLUNTEER_ID) VOLUNTEER_ID = data[0].volunteer_id;
-                    if(VOLUNTEER_ID) document.getElementById('admin-list-btn').href = `admin.html?vid=${VOLUNTEER_ID}`;
-                }
-            } else {
-                document.getElementById('user-name').innerText = "ゲスト";
-            }
-        } catch (e) {
-            document.getElementById('user-name').innerText = "エラー";
-        }
-    }
-
-    const calendarEl = document.getElementById('calendar');
-    const formatDate = (date) => {
-        const pad = (n) => n < 10 ? '0' + n : n;
-        return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
-    };
-
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        timeZone: 'local', 
-        locale: 'ja',
-        slotDuration: '01:00:00',
-        selectable: true,
-        allDaySlot: false,
-        editable: true,
-        eventStartEditable: true,
-        eventDurationEditable: true,
-
-        select: async function(info) {
-            const startTime = formatDate(info.start);
-            const endTime = formatDate(info.end);
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
-                method: "POST",
-                headers: {
-                    "apikey": API_KEY,
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json",
-                    "Prefer": "return=representation"
-                },
-                body: JSON.stringify({
-                    volunteer_id: VOLUNTEER_ID,
-                    start_time: startTime,
-                    end_time: endTime,
-                    booked: false
-                })
-            });
-            if (res.ok) loadEvents();
-            calendar.unselect();
-        },
-
-        eventChange: async function(info) {
-            const id = info.event.extendedProps.id;
-            const newStart = formatDate(info.event.start);
-            const newEnd = formatDate(info.event.end);
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
-                method: "PATCH",
-                headers: {
-                    "apikey": API_KEY,
-                    "Authorization": `Bearer ${API_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ start_time: newStart, end_time: newEnd })
-            });
-            if (!res.ok) {
-                alert("更新に失敗しました。");
-                info.revert();
-            }
-        },
-
-        eventClick: async function(info) {
-            if(info.event.extendedProps.booked) return alert("予約済みのため操作不可");
-            if(confirm("この枠を削除しますか？")){
-                const id = info.event.extendedProps.id;
-                await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${id}`, {
-                    method: "DELETE",
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-                });
-                info.event.remove();
-            }
-        }
-    });
-
-    async function loadEvents() {
-        if(!VOLUNTEER_ID) return;
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+// ★ 修正後の初期化関数
+async function initializePage() {
+    try {
+        // 1. まずログイン状態を確認
+        const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
-        const data = await res.json();
-        calendar.removeAllEvents();
-        data.forEach(item => {
-            const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-            const cleanEnd = item.end_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-            calendar.addEvent({
-                id: item.id,
-                start: cleanStart,
-                end: cleanEnd,
-                title: item.booked ? "予約済み" : "対応可能",
-                color: item.booked ? "#999" : "#3788d8",
-                extendedProps: { id: item.id, booked: item.booked }
+        
+        // HTTPステータスが200（成功）でない場合はログイン画面へ戻す
+        if (!userRes.ok) {
+            window.location.href = "index.html";
+            return;
+        }
+
+        const user = await userRes.json();
+        
+        if (user && user.id) {
+            // 2. ログインOKなら、ニックネームとvolunteer_idを取得
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`, {
+                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
             });
-        });
-        calendar.render();
+            const data = await res.json();
+            
+            if (data && data[0]) {
+                document.getElementById('user-name').innerText = data[0].nickname || "ボランティア";
+                // vidの確定
+                if(!VOLUNTEER_ID) VOLUNTEER_ID = data[0].volunteer_id;
+                
+                // 3. IDが確定してからカレンダーを描画
+                loadEvents();
+            }
+        }
+    } catch (e) {
+        console.error("Initialization Error:", e);
+        // エラー時は安全のためトップへ
+        window.location.href = "index.html";
     }
+}
 
-    document.getElementById('qr-btn').addEventListener('click', function() {
-        if (!VOLUNTEER_ID) return alert("vidがありません");
-        const qrContainer = document.getElementById('qr-container');
-        const qrElement = document.getElementById('qrcode');
-        const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}`;
-        qrContainer.style.setProperty('display', 'inline-block', 'important');
-        qrElement.innerHTML = "";
-        new QRCode(qrElement, { text: adminUrl, width: 160, height: 160 });
+// カレンダーの基本設定
+const calendarEl = document.getElementById('calendar');
+const formatDate = (date) => {
+    const pad = (n) => n < 10 ? '0' + n : n;
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+};
+
+const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'timeGridWeek',
+    locale: 'ja',
+    selectable: true,
+    editable: true,
+    select: async function(info) {
+        if(!VOLUNTEER_ID) return alert("IDが読み込めていません。");
+        const startTime = formatDate(info.start);
+        const endTime = formatDate(info.end);
+        await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+            method: "POST",
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ volunteer_id: VOLUNTEER_ID, start_time: startTime, end_time: endTime, booked: false })
+        });
+        loadEvents();
+    }
+});
+
+async function loadEvents() {
+    if(!VOLUNTEER_ID) return;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
     });
+    const data = await res.json();
+    calendar.removeAllEvents();
+    data.forEach(item => {
+        calendar.addEvent({
+            id: item.id,
+            start: item.start_time,
+            end: item.end_time,
+            title: item.booked ? "予約済み" : "対応可能",
+            color: item.booked ? "#999" : "#3788d8"
+        });
+    });
+    calendar.render();
+}
 
-    // 初期化実行
-    await displayUserProfile();
-    loadEvents();
+// ページ読み込み完了時に実行
+document.addEventListener('DOMContentLoaded', () => {
+    initializePage();
 });
 </script>
 </body>
