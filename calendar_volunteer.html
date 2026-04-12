@@ -11,6 +11,8 @@
         .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
         .btn { padding: 12px 24px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #3788d8; color: white; text-decoration: none; display: inline-block; }
         h1 { text-align: center; color: #333; }
+        
+        /* QR表示エリア */
         #qr-container { display: none; text-align: center; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 300px; }
         #qrcode { display: flex; justify-content: center; margin-top: 10px; }
     </style>
@@ -39,6 +41,7 @@ const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 
+// admin.htmlへのリンク
 document.getElementById('admin-link').href = `admin.html?vid=${VOLUNTEER_ID}`;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,14 +49,14 @@ document.addEventListener('DOMContentLoaded', function() {
     loadEvents();
 });
 
-// --- タイムゾーン補正関数 ---
-// 日本時間（JST）の文字列を、そのままの「見た目」でDBに送るための処理
+// タイムゾーン補正（DB保存用）
 function toLocalISO(dateStr) {
     const date = new Date(dateStr);
     const offset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - offset).toISOString().slice(0, -1);
 }
 
+// QRコード表示機能（admin_calendar.htmlへリンク）
 function toggleQR() {
     const container = document.getElementById('qr-container');
     const qrDiv = document.getElementById('qrcode');
@@ -61,7 +64,8 @@ function toggleQR() {
         container.style.display = 'none';
     } else {
         qrDiv.innerHTML = "";
-        const adminUrl = window.location.origin + "/admin.html?vid=" + VOLUNTEER_ID;
+        // QRコードの遷移先を admin_calendar.html に設定
+        const adminUrl = window.location.origin + "/admin_calendar.html?vid=" + VOLUNTEER_ID;
         new QRCode(qrDiv, { text: adminUrl, width: 200, height: 200 });
         container.style.display = 'block';
     }
@@ -82,8 +86,8 @@ function initCalendar() {
                 headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
                     volunteer_id: VOLUNTEER_ID,
-                    start_time: toLocalISO(info.startStr), // 補正して送信
-                    end_time: toLocalISO(info.endStr),     // 補正して送信
+                    start_time: toLocalISO(info.startStr),
+                    end_time: toLocalISO(info.endStr),
                     booked: false
                 })
             });
@@ -112,8 +116,8 @@ async function updateEvent(event) {
         method: "PATCH", 
         headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-            start_time: toLocalISO(event.startStr), // 補正して送信
-            end_time: toLocalISO(event.endStr)      // 補正して送信
+            start_time: toLocalISO(event.startStr),
+            end_time: toLocalISO(event.endStr)
         })
     });
 }
@@ -124,13 +128,11 @@ async function loadEvents() {
     });
     const data = await res.json();
     calendar.removeAllEvents();
-    
     data.forEach(item => {
-        // 時差ボケを防ぐための処理
-        // DBの「2024-04-13T11:00:00」を、そのまま「11時」としてカレンダーに置く
-        const startTime = item.start_time.split('+')[0]; // タイムゾーン情報をカット
+        // 表示時の時差ボケ防止：タイムゾーン情報をカットして読み込み
+        const startTime = item.start_time.split('+')[0];
         const endTime = item.end_time.split('+')[0];
-
+        
         calendar.addEvent({
             id: item.id,
             start: startTime,
