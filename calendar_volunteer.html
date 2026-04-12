@@ -39,15 +39,11 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// URLから vid（A001など）を取得
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid");
 let calendar;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. カレンダーを先に初期化（データがなくても枠は出す）
     initCalendar();
-    
-    // 2. ユーザー情報を読み込む
     await loadUserProfile();
 });
 
@@ -55,57 +51,46 @@ async function loadUserProfile() {
     const nameDisplay = document.getElementById('user-name');
     
     try {
-        // 現在のログインセッションを取得
+        // 1. Supabase Auth から現在のユーザー情報を取得
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: { 
-                "apikey": API_KEY, 
-                "Authorization": `Bearer ${API_KEY}` 
-            }
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
 
         if (!userRes.ok) {
-            nameDisplay.innerText = "ゲスト";
+            nameDisplay.innerText = "未ログイン";
             return;
         }
 
         const authUser = await userRes.json();
-        const uid = authUser.id; // これが Supabase Auth の ID
+        const uid = authUser.id; // これが照合の鍵となるIDです
+        console.log("【デバッグ】ログイン中のUID:", uid);
 
-        // usersテーブルから、authのIDと一致する行を探す
-        // id が text型の場合でも、この eq フィルタで照合可能です
+        // 2. usersテーブルを検索
+        // idがtext型の場合、念のため trim() 的な挙動を期待して eq で検索します
         const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
-            headers: { 
-                "apikey": API_KEY, 
-                "Authorization": `Bearer ${API_KEY}` 
-            }
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
         });
         
         const data = await res.json();
+        console.log("【デバッグ】usersテーブルからの取得結果:", data);
         
         if (data && data.length > 0) {
             const user = data[0];
             nameDisplay.innerText = user.nickname || "ボランティア";
-            
-            // もしURLに vid がなければ、DBから取得した値を使う
-            if (!VOLUNTEER_ID) {
-                VOLUNTEER_ID = user.volunteer_id;
-            }
-            
-            // 自分のイベントを読み込み
+            if (!VOLUNTEER_ID) VOLUNTEER_ID = user.volunteer_id;
             loadEvents();
         } else {
-            // テーブルにデータがない場合
-            nameDisplay.innerText = "ユーザー情報未登録";
-            console.error("usersテーブルに該当するIDが見つかりません:", uid);
+            // ここで「ゲスト」にならずに、原因を表示させます
+            nameDisplay.innerText = "ユーザー名未登録";
+            console.error("【重要】usersテーブルにこのIDのデータが存在しません。IDをコピーしてDBを確認してください:", uid);
         }
     } catch (error) {
         console.error("Profile Load Error:", error);
-        nameDisplay.innerText = "エラー";
+        nameDisplay.innerText = "通信エラー";
     }
 }
 
-// --- 以下、カレンダー表示用の共通関数 ---
-
+// --- カレンダー関連の関数（変更なし） ---
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -115,10 +100,7 @@ function initCalendar() {
         editable: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
         select: async function(info) {
-            if (!VOLUNTEER_ID || VOLUNTEER_ID === "IDなし") {
-                return alert("ボランティアIDが不明です。再ログインしてください。");
-            }
-            // 登録処理...
+            if (!VOLUNTEER_ID) return alert("IDが読み込めていません");
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
                 headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
