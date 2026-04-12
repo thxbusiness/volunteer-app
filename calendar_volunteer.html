@@ -51,25 +51,36 @@ async function loadUserProfile() {
     const nameDisplay = document.getElementById('user-name');
     
     try {
+        // 1. セッションが確立されるまで少し待機（重要）
         const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+            headers: { 
+                "apikey": API_KEY, 
+                "Authorization": `Bearer ${API_KEY}` 
+            }
         });
 
+        // ログインしていない場合
         if (!userRes.ok) {
-            nameDisplay.innerText = "未ログイン";
+            console.warn("Auth session not found.");
+            nameDisplay.innerText = "ゲスト（未ログイン）";
             return;
         }
 
         const authUser = await userRes.json();
         const uid = authUser.id;
+        console.log("ログイン成功 UID:", uid);
 
-        // データの取得
+        // 2. usersテーブルから名前を取得
         const res = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${uid}`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+            headers: { 
+                "apikey": API_KEY, 
+                "Authorization": `Bearer ${API_KEY}` 
+            }
         });
 
+        // RLSがオンのままだとここで 403 が出ます
         if (res.status === 403) {
-            nameDisplay.innerText = "権限エラー(RLSオフにしてください)";
+            nameDisplay.innerText = "権限エラー (RLS設定を確認)";
             return;
         }
 
@@ -77,16 +88,16 @@ async function loadUserProfile() {
         
         if (data && data.length > 0) {
             nameDisplay.innerText = data[0].nickname || "ボランティア";
-            // vidを更新
             if (!VOLUNTEER_ID) VOLUNTEER_ID = data[0].volunteer_id;
             loadEvents();
         } else {
+            // テーブルにUIDが存在しない場合
             nameDisplay.innerText = "名簿未登録";
-            console.log("このUIDをusersテーブルに登録してください:", uid);
+            console.log("DBのusersテーブルにこのIDを登録してください:", uid);
         }
     } catch (error) {
-        console.error("Error:", error);
-        nameDisplay.innerText = "接続エラー";
+        console.error("Load Error:", error);
+        nameDisplay.innerText = "エラー";
     }
 }
 
