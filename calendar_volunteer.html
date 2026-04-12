@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <title>対応可能時間登録</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; }
+        .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
         .btn { padding: 12px 24px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; background: #3788d8; color: white; text-decoration: none; display: inline-block; }
         h1 { text-align: center; color: #333; }
+        
+        /* QR表示エリアのスタイル */
+        #qr-container { display: none; text-align: center; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 300px; }
+        #qrcode { display: flex; justify-content: center; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -17,8 +22,14 @@
 <h1>ボランティア対応可能時間</h1>
 
 <div class="admin-controls">
-    <a href="admin_qr.html" id="qr-link" class="btn" style="background: #28a745;">管理者用QRを表示</a>
-    <a href="contract_list.html" id="contract-link" class="btn">契約一覧を確認</a>
+    <button onclick="toggleQR()" class="btn" style="background: #28a745;">管理者用QRを表示</button>
+    <a href="admin.html" id="admin-link" class="btn">管理者ページへ</a>
+</div>
+
+<div id="qr-container">
+    <strong>管理者用URLのQRコード</strong>
+    <div id="qrcode"></div>
+    <p style="font-size: 12px; color: #666; margin-top: 10px;">スマホでスキャンしてください</p>
 </div>
 
 <div id="calendar"></div>
@@ -28,19 +39,40 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// URLからvid（ボランティアID）を取得
+// URLからvidを取得
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 
-// ボタンのリンクにvidを引き継ぐ処理
-document.getElementById('qr-link').href = `admin_qr.html?vid=${VOLUNTEER_ID}`;
-document.getElementById('contract-link').href = `contract_list.html?vid=${VOLUNTEER_ID}`;
+// admin.htmlへのリンクにvidを付与
+document.getElementById('admin-link').href = `admin.html?vid=${VOLUNTEER_ID}`;
 
 document.addEventListener('DOMContentLoaded', function() {
     initCalendar();
     loadEvents();
 });
 
+// --- QRコード表示機能 ---
+function toggleQR() {
+    const container = document.getElementById('qr-container');
+    const qrDiv = document.getElementById('qrcode');
+    
+    if (container.style.display === 'block') {
+        container.style.display = 'none';
+    } else {
+        qrDiv.innerHTML = ""; // 二重表示防止
+        // 管理者用URL（admin.html）をQR化
+        const adminUrl = window.location.origin + "/admin.html?vid=" + VOLUNTEER_ID;
+        new QRCode(qrDiv, {
+            text: adminUrl,
+            width: 200,
+            height: 200
+        });
+        container.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+}
+
+// --- カレンダー基本機能 ---
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -50,7 +82,6 @@ function initCalendar() {
         editable: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
         
-        // 新規登録
         select: async function(info) {
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
@@ -70,11 +101,9 @@ function initCalendar() {
             calendar.unselect();
         },
 
-        // ドラッグ・リサイズで更新
         eventDrop: async function(info) { updateEvent(info.event); },
         eventResize: async function(info) { updateEvent(info.event); },
 
-        // クリックで削除
         eventClick: async function(info) {
             if (confirm("この予定を削除しますか？")) {
                 const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${info.event.id}`, {
