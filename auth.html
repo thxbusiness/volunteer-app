@@ -72,13 +72,27 @@
             if (error) { msg.innerText = error.message; msg.style.color = "red"; }
             else { msg.style.color = "green"; msg.innerText = "承認メールを送りました。リンクをクリックしてください。"; }
         } else {
-            const { error } = await supabaseClient.auth.signInWithPassword({ email: email, password: "password123" });
+            // ログイン（SignIn）の処理
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ 
+                email: email, 
+                password: "password123" 
+            });
+
             if (error) { 
-                msg.innerText = "登録がないか、承認が終わっていません。"; 
+                msg.innerText = "登録がないか、承認が終わっていません。: " + error.message; 
                 msg.style.color = "red"; 
             } else { 
-                // ログイン成功時、vidを保持したまま遷移
-                window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(vid)}`; 
+                // ★ 修正ポイント：メッセージを出して少し待機する ★
+                msg.innerText = "ログイン成功！移動します...";
+                msg.style.color = "green";
+                
+                // ブラウザが「ログインした」という情報を保存し終えるのを待つために
+                // 0.8秒（800ミリ秒）後にページを移動させます。
+                setTimeout(() => {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const vid = urlParams.get('vid') || "IDなし"; 
+                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(vid)}`; 
+                }, 800); 
             }
         }
     });
