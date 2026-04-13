@@ -20,6 +20,12 @@
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
         .details { font-size: 0.85em; color: #666; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px; }
         .refresh-btn { padding: 10px 20px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
+        /* ボタンのスタイル */
+        .admin-btn { 
+            display: block; text-align: center; margin-top: 15px; 
+            background: #28a745; text-decoration: none; color: white; 
+            padding: 10px; border-radius: 5px; font-size: 0.9em; font-weight: bold; 
+        }
     </style>
 </head>
 <body>
@@ -33,55 +39,60 @@
         const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
         async function fetchContracts() {
-    const listDiv = document.getElementById("contractList");
-    try {
-        // リレーションを含めて取得（usersテーブルとの紐付け）
-        const url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&select=*,users(nickname)&order=start_time.asc`;
-        
-        const response = await fetch(url, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
-        
-        const data = await response.json();
-        listDiv.innerHTML = "";
+            const listDiv = document.getElementById("contractList");
+            try {
+                // 1. データ取得（リレーションを明示的に指定）
+                const url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&select=*,users!fk_availability_volunteer(nickname)&order=start_time.asc`;
+                
+                const response = await fetch(url, {
+                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+                });
+                
+                if (!response.ok) throw new Error("取得に失敗しました");
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    listDiv.innerHTML = "成立済みの契約はありません。";
+                    return;
+                }
 
-        data.forEach(item => {
-            const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
-            const startDate = new Date(cleanStart);
-            const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-            const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                listDiv.innerHTML = "";
 
-            // --- 名前取得のロジック ---
-            let nickname = "名前未設定";
-            if (item.users) {
-                // usersが配列で返ってくる場合とオブジェクトで返ってくる場合の両方に対応
-                nickname = Array.isArray(item.users) ? item.users[0]?.nickname : item.users.nickname;
+                data.forEach(item => {
+                    // 2. 日時の整形（時差ボケ防止）
+                    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
+                    const startDate = new Date(cleanStart);
+                    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+                    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+
+                    // 3. ニックネームの取得
+                    const nickname = item.users?.nickname || "名前未設定";
+
+                    // 4. カードの作成
+                    const card = document.createElement("div");
+                    card.className = "contract-card";
+                    card.innerHTML = `
+                        <div class="nickname-badge">👤 担当：${nickname}</div>
+                        <div class="date">${dateStr} ${timeStr}〜</div>
+                        <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
+                        <div class="details">
+                            🆔 ボランティアID: ${item.volunteer_id}<br>
+                            📧 連絡先: ${item.restaurant_email || "未登録"}
+                        </div>
+                        <a href="admin_calendar.html?vid=${item.volunteer_id}" class="admin-btn">
+                           📅 この人のカレンダーを確認
+                        </a>
+                    `;
+                    listDiv.appendChild(card);
+                });
+
+            } catch (err) {
+                console.error(err);
+                listDiv.innerHTML = "データの取得に失敗しました。ブラウザのコンソールを確認してください。";
             }
-
-            // --- カードの生成部分を以下に差し替え ---
-const card = document.createElement("div");
-card.className = "contract-card";
-card.innerHTML = `
-    ${foundName ? `<div class="nickname-badge">👤 担当：${foundName}</div>` : ""}
-    <div class="date">${dateStr} ${timeStr}〜</div>
-    <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
-    <div class="details">
-        🆔 ボランティアID: ${item.volunteer_id}<br>
-        📧 連絡先: ${item.restaurant_email || "未登録"}
-    </div>
-    <a href="admin_calendar.html?vid=${item.volunteer_id}" 
-       class="btn" 
-       style="display: block; text-align: center; margin-top: 15px; background: #28a745; text-decoration: none; color: white; padding: 8px; border-radius: 5px; font-size: 0.9em; font-weight: bold;">
-       📅 この人のカレンダーを確認
-    </a>
-`;
-listDiv.appendChild(card);
-        });
-
-    } catch (err) {
-        listDiv.innerHTML = "データの取得に失敗しました。";
-    }
-}
+        }
+        
+        // 初回読み込み
         fetchContracts();
     </script>
 </body>
