@@ -32,23 +32,9 @@
             margin: 10px 0 20px;
             color: #1a1a1a;
         }
-
-        /* カレンダー全体のフォントサイズを10pxに設定 */
-        .fc { 
-            font-size: 10px !important; 
-        }
-        
-        /* ヘッダーのタイトル（年月）は読みやすさのため少し大きめに維持 */
-        .fc-toolbar-title { 
-            font-size: 14px !important; 
-        }
-        
-        /* 過去のセルのグレーアウト */
-        .fc-day-past, .fc-timegrid-slot-past { 
-            background-color: #f5f5f5 !important; 
-        }
-
-        /* 予定ブロックの余白 */
+        .fc { font-size: 10px !important; }
+        .fc-toolbar-title { font-size: 14px !important; }
+        .fc-day-past, .fc-timegrid-slot-past { background-color: #f5f5f5 !important; }
         .fc-v-event { padding: 1px 2px; border-radius: 4px; }
     </style>
 </head>
@@ -82,13 +68,7 @@ function initCalendar() {
         slotMaxTime: "22:00:00",
         height: "auto",
         stickyHeaderDates: true,
-        headerToolbar: { 
-            left: 'prev,next today', 
-            center: 'title', 
-            right: '' 
-        },
-        
-        // 日付ヘッダーの表示形式をカスタマイズ（月を除去）
+        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
         dayHeaderFormat: { day: 'numeric', weekday: 'short', omitCommas: true },
 
         eventClick: async function(info) {
@@ -99,7 +79,6 @@ function initCalendar() {
             if (isBooked) {
                 const code = prompt("キャンセルコードを入力してください:");
                 if (!code) return;
-
                 const savedCode = event.extendedProps.cancel_code;
                 if (String(code).trim() === String(savedCode).trim()) {
                     if (confirm("予約をキャンセルして枠を空けますか？")) {
@@ -122,8 +101,17 @@ function initCalendar() {
                 return;
             }
             
+            // --- ここで日時フォーマットをカスタマイズ ---
+            const dateStr = new Intl.DateTimeFormat('ja-JP', { 
+                month: 'numeric', 
+                day: 'numeric', 
+                weekday: 'short' 
+            }).format(event.start); // 例: "4/13(月)"
+
             const startTimeStr = event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-            if (confirm(`${startTimeStr} の枠で予約を進めますか？`)) {
+            const endTimeStr = event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+
+            if (confirm(`${dateStr} ${startTimeStr}〜${endTimeStr} の枠で予約を進めますか？`)) {
                 const params = new URLSearchParams({
                     vid: VOLUNTEER_ID,
                     start: event.startStr,
