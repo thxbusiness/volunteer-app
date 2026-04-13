@@ -2,80 +2,89 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>予約カレンダー（管理者）</title>
+    <title>予約登録（管理者用カレンダー）</title>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <style>
-        /* calendar_volunteer.html と同じスタイルを維持 */
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
-        .calendar-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h2 { color: #333; border-bottom: 2px solid #3788d8; padding-bottom: 10px; }
-        
-        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #ddd; border: 1px solid #ddd; }
-        .cell { background: white; padding: 10px; min-height: 100px; position: relative; }
-        .header-cell { background: #f8f9fa; font-weight: bold; text-align: center; padding: 10px; }
+        body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
+        #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
 
-        /* 過去の枠：グレーアウト表示 */
-        .cell-past { 
-            background-color: #f9f9f9; 
-            color: #ccc; 
-            cursor: not-allowed; 
-        }
-        /* 過去の枠内のバッジやボタンを非表示、または色変更 */
-        .cell-past .badge { background-color: #ddd !important; color: #aaa !important; }
-        .cell-past * { pointer-events: none; } /* セル内の全要素のクリックを無効化 */
-
-        .date-num { font-weight: bold; margin-bottom: 5px; display: block; }
-        .badge { 
-            display: block; font-size: 0.8em; background: #3788d8; color: white; 
-            padding: 4px 8px; border-radius: 4px; margin-top: 5px; cursor: pointer; text-align: center;
-        }
+        /* 過去のセルの背景をグレーにする */
+        .fc-day-past { background-color: #f0f0f0 !important; }
+        /* 過去の時間の背景（週表示など）もグレーにする */
+        .fc-timegrid-slot-past { background-color: #f0f0f0 !important; }
     </style>
 </head>
 <body>
 
-    <div class="calendar-container">
-        <h2 id="monthTitle">2026年4月</h2>
-        <div class="grid" id="calendarGrid">
-            <div class="header-cell">日</div><div class="header-cell">月</div>
-            <div class="header-cell">火</div><div class="header-cell">水</div>
-            <div class="header-cell">木</div><div class="header-cell">金</div>
-            <div class="header-cell">土</div>
-            </div>
-    </div>
+<h1>予約登録（管理者モード）</h1>
+<div id="calendar"></div>
 
-    <script>
-        function generateCalendar() {
-            const grid = document.getElementById("calendarGrid");
-            const now = new Date(); // 現在時刻
+<script>
+const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-            for (let i = 1; i <= 30; i++) {
-                // その日の「終了」判定用の時刻を作成（例：23時59分までをその日の枠とする場合）
-                // より厳密に「現在の時間」で判定する場合は、予約枠ごとの時間と比較させます
-                const cellDate = new Date(2026, 3, i, 23, 59); 
-                
-                const cell = document.createElement("div");
-                cell.className = "cell";
-                
-                // --- 過去判定ロジック ---
-                const isPast = cellDate < now;
-                if (isPast) {
-                    cell.classList.add("cell-past");
-                }
+let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
+let calendar;
 
-                cell.innerHTML = `
-                    <span class="date-num">${i}</span>
-                    ${!isPast ? `<div class="badge" onclick="openForm(${i})">予約登録</div>` : `<div class="badge">終了</div>`}
-                `;
-                grid.appendChild(cell);
-            }
+document.addEventListener('DOMContentLoaded', function() {
+    initCalendar();
+    loadEvents();
+});
+
+function initCalendar() {
+    const calendarEl = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'timeGridWeek',
+        locale: 'ja',
+        selectable: true,
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+        
+        // --- 過去の日時の選択を禁止する ---
+        selectAllow: function(selectInfo) {
+            // 現在時刻より前なら選択を許可しない
+            return selectInfo.start >= new Date();
+        },
+
+        select: async function(info) {
+            // ここで予約登録フォームなどの処理を記述
+            const restaurantName = prompt("店舗名を入力してください:");
+            if (!restaurantName) return calendar.unselect();
+
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+                method: "POST",
+                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    volunteer_id: VOLUNTEER_ID,
+                    start_time: info.startStr,
+                    end_time: info.endStr,
+                    restaurant_name: restaurantName,
+                    booked: true // 管理者が入れるので最初から予約済み
+                })
+            });
+            if (res.ok) loadEvents();
+            calendar.unselect();
         }
+    });
+    calendar.render();
+}
 
-        function openForm(day) {
-            console.log(day + "日の予約フォームを開きます");
-            // ここに既存のフォーム呼び出しロジックを記述
-        }
-
-        generateCalendar();
-    </script>
+async function loadEvents() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+    });
+    const data = await res.json();
+    calendar.removeAllEvents();
+    data.forEach(item => {
+        calendar.addEvent({
+            id: item.id,
+            start: item.start_time,
+            end: item.end_time,
+            title: item.booked ? `予約済: ${item.restaurant_name || ''}` : "対応可能",
+            backgroundColor: item.booked ? "#999" : "#3788d8"
+        });
+    });
+}
+</script>
 </body>
 </html>
