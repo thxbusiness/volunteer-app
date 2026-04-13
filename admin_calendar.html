@@ -5,13 +5,18 @@
     <title>予約管理（管理者用）</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <style>
+        /* calendar_volunteer.html のスタイルを継承 */
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { text-align: center; color: #333; }
 
-        /* 過去のセルのグレーアウト */
+        /* 過去のセルのグレーアウト（管理者限定の視覚補助） */
         .fc-day-past { background-color: #f0f0f0 !important; }
         .fc-timegrid-slot-past { background-color: #f0f0f0 !important; }
+        
+        /* 予約済みは赤、空き枠は青で視認性を向上 */
+        .event-booked { border: none !important; }
+        .event-available { border: none !important; }
     </style>
 </head>
 <body>
@@ -39,7 +44,7 @@ function initCalendar() {
         locale: 'ja',
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
         
-        // 過去の日時の選択・操作を禁止
+        // 過去の日時を選択・操作させないガード
         selectAllow: function(selectInfo) {
             return selectInfo.start >= new Date();
         },
@@ -48,24 +53,36 @@ function initCalendar() {
             const event = info.event;
             const isBooked = event.extendedProps.booked;
 
-            // 1. すでに予約済みのブロックの場合（キャンセル処理）
+            // 1. 予約済みブロックをクリックした場合（キャンセル処理）
             if (isBooked) {
                 const code = prompt("キャンセルコードを入力してください:");
                 if (!code) return;
 
-                // DBに保存されているコードと照合（extendedPropsから取得）
-                if (code === event.extendedProps.cancel_code) {
-                    if (confirm("予約をキャンセルして枠を開放しますか？")) {
+                // 型の違い（数値と文字列）による不一致を防ぐため String() で比較
+                const savedCode = event.extendedProps.cancel_code;
+                
+                if (String(code) === String(savedCode)) {
+                    if (confirm("予約をキャンセルして枠を「空き」に戻しますか？")) {
                         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
                             method: "PATCH",
-                            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+                            headers: { 
+                                "apikey": API_KEY, 
+                                "Authorization": `Bearer ${API_KEY}`, 
+                                "Content-Type": "application/json",
+                                "Prefer": "return=minimal"
+                            },
                             body: JSON.stringify({
-                                restaurant_name: null,
-                                booked: false,
-                                status: 'open'
+                                restaurant_name: null, // 店名を消去
+                                booked: false,         // 未予約状態に戻す
+                                status: 'open'         // ステータスをリセット
                             })
                         });
-                        if (res.ok) loadEvents();
+                        if (res.ok) {
+                            alert("予約を解除しました。");
+                            loadEvents();
+                        } else {
+                            alert("エラー：解除に失敗しました。");
+                        }
                     }
                 } else {
                     alert("キャンセルコードが正しくありません。");
@@ -73,7 +90,13 @@ function initCalendar() {
                 return;
             }
 
-            // 2. 空き枠（未予約）のブロックの場合（遷移処理）
+            // 2. 空き枠（未予約）をクリックした場合（画面遷移）
+            // 過去の時間は遷移させない
+            if (event.start < new Date()) {
+                alert("過去の時間は選択できません。");
+                return;
+            }
+
             const startTimeStr = event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
             if (confirm(`${startTimeStr} の枠で予約を進めますか？\n（店舗選択画面へ移動します）`)) {
                 const params = new URLSearchParams({
@@ -82,7 +105,6 @@ function initCalendar() {
                     end: event.endStr,
                     slot_id: event.id
                 });
-                // scan_select_mobile.html へ遷移
                 window.location.href = `scan_select_mobile.html?${params.toString()}`;
             }
         }
@@ -98,7 +120,7 @@ async function loadEvents() {
     calendar.removeAllEvents();
 
     data.forEach(item => {
-        // 時差ボケ防止：ボランティア側と同じ split 処理
+        // 表示時の時差ボケ防止：ボランティア側と同じく split 処理を徹底
         const startTime = item.start_time.split('+')[0].split('Z')[0];
         const endTime = item.end_time.split('+')[0].split('Z')[0];
         
@@ -106,11 +128,12 @@ async function loadEvents() {
             id: item.id,
             start: startTime,
             end: endTime,
-            title: item.booked ? `予約済: ${item.restaurant_name}` : "予約可能",
-            backgroundColor: item.booked ? "#e74c3c" : "#3498db",
+            title: item.booked ? `予約済: ${item.restaurant_name || ''}` : "対応可能",
+            backgroundColor: item.booked ? "#e74c3c" : "#3788d8", // 予約済は赤、空きは青
+            className: item.booked ? 'event-booked' : 'event-available',
             extendedProps: {
                 booked: item.booked,
-                cancel_code: item.cancel_code // キャンセル照合用に保持
+                cancel_code: item.cancel_code // キャンセル時に照合するためプロパティとして保持
             }
         });
     });
