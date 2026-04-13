@@ -5,13 +5,13 @@
     <title>予約登録（管理者用カレンダー）</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <style>
+        /* calendar_volunteer.html のスタイルを完全継承 */
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { text-align: center; color: #333; }
-
-        /* 過去のセルの背景をグレーにする */
+        
+        /* 過去のセルの背景を視覚的にグレーアウト */
         .fc-day-past { background-color: #f0f0f0 !important; }
-        /* 過去の時間の背景（週表示など）もグレーにする */
         .fc-timegrid-slot-past { background-color: #f0f0f0 !important; }
     </style>
 </head>
@@ -32,6 +32,13 @@ document.addEventListener('DOMContentLoaded', function() {
     loadEvents();
 });
 
+// 保存時のタイムゾーン補正（DB保存用）
+function toLocalISO(dateStr) {
+    const date = new Date(dateStr);
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, -1);
+}
+
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -40,30 +47,47 @@ function initCalendar() {
         selectable: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
         
-        // --- 過去の日時の選択を禁止する ---
+        // --- 過去の日時の選択を禁止するガード ---
         selectAllow: function(selectInfo) {
-            // 現在時刻より前なら選択を許可しない
             return selectInfo.start >= new Date();
         },
 
         select: async function(info) {
-            // ここで予約登録フォームなどの処理を記述
-            const restaurantName = prompt("店舗名を入力してください:");
+            const restaurantName = prompt("予約する店舗名を入力してください:");
             if (!restaurantName) return calendar.unselect();
 
             const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
-                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+                headers: { 
+                    "apikey": API_KEY, 
+                    "Authorization": `Bearer ${API_KEY}`, 
+                    "Content-Type": "application/json" 
+                },
                 body: JSON.stringify({
                     volunteer_id: VOLUNTEER_ID,
-                    start_time: info.startStr,
-                    end_time: info.endStr,
+                    start_time: toLocalISO(info.startStr),
+                    end_time: toLocalISO(info.endStr),
                     restaurant_name: restaurantName,
                     booked: true // 管理者が入れるので最初から予約済み
                 })
             });
-            if (res.ok) loadEvents();
+            if (res.ok) {
+                loadEvents();
+            } else {
+                alert("登録に失敗しました");
+            }
             calendar.unselect();
+        },
+
+        // 既存の予定をクリックした時の処理（削除など）
+        eventClick: async function(info) {
+            if (confirm("この予約を削除しますか？")) {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${info.event.id}`, {
+                    method: "DELETE",
+                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+                });
+                if (res.ok) info.event.remove();
+            }
         }
     });
     calendar.render();
@@ -75,11 +99,16 @@ async function loadEvents() {
     });
     const data = await res.json();
     calendar.removeAllEvents();
+
     data.forEach(item => {
+        // --- 時差ボケ防止：+00 や Z をカットして読み込む ---
+        const startTime = item.start_time.split('+')[0].split('Z')[0];
+        const endTime = item.end_time.split('+')[0].split('Z')[0];
+        
         calendar.addEvent({
             id: item.id,
-            start: item.start_time,
-            end: item.end_time,
+            start: startTime,
+            end: endTime,
             title: item.booked ? `予約済: ${item.restaurant_name || ''}` : "対応可能",
             backgroundColor: item.booked ? "#999" : "#3788d8"
         });
