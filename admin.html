@@ -13,7 +13,7 @@
         }
         .nickname-badge { 
             background: #2ecc71; color: white; padding: 4px 12px; 
-            border-radius: 20px; font-weight: bold; font-size: 1.1em;
+            border-radius: 20px; font-weight: bold; font-size: 0.9em;
             display: inline-block; margin-bottom: 10px;
         }
         .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
@@ -35,46 +35,46 @@
         async function fetchContracts() {
             const listDiv = document.getElementById("contractList");
             try {
-                // nicknameのみをピンポイントで取得
-                const url = `${SUPABASE_URL}/rest/v1/availability?select=*,users(nickname)&booked=eq.true&order=start_time.asc`;
+                // 修正：まずはリレーションを使わず、availabilityテーブルから直接データを取得
+                const url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&order=start_time.asc`;
                 
                 const response = await fetch(url, {
                     headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
                 });
+                
+                if (!response.ok) throw new Error("取得エラー");
                 const data = await response.json();
+
+                if (data.length === 0) {
+                    listDiv.innerHTML = "成立済みの契約はありません。";
+                    return;
+                }
 
                 listDiv.innerHTML = "";
                 data.forEach(item => {
-                    const startDate = new Date(item.start_time);
+                    // 時差ボケ防止処理（カレンダー側と同様）
+                    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
+                    const startDate = new Date(cleanStart);
+                    
                     const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
                     const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-
-                    // --- 最もシンプルな名前取得ロジック ---
-                    let foundName = "";
-                    
-                    if (item.users) {
-                        // 配列[0]の中にあるか、直接入っているか、両方探します
-                        const u = Array.isArray(item.users) ? item.users[0] : item.users;
-                        if (u && u.nickname) {
-                            foundName = u.nickname;
-                        }
-                    }
 
                     const card = document.createElement("div");
                     card.className = "contract-card";
                     card.innerHTML = `
-                        ${foundName ? `<div class="nickname-badge">👤 担当：${foundName}</div>` : ""}
                         <div class="date">${dateStr} ${timeStr}〜</div>
-                        <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
+                        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
                         <div class="details">
                             🆔 ボランティアID: ${item.volunteer_id}<br>
-                            📧 連絡先: ${item.restaurant_email || "未登録"}
+                            📧 連絡先: ${item.restaurant_email || "未登録"}<br>
+                            🔑 キャンセルコード: ${item.cancel_code || "なし"}
                         </div>
                     `;
                     listDiv.appendChild(card);
                 });
 
             } catch (err) {
+                console.error(err);
                 listDiv.innerHTML = "データの取得に失敗しました。";
             }
         }
