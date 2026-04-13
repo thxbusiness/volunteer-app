@@ -25,6 +25,30 @@
             background: #28a745; text-decoration: none; color: white; 
             padding: 10px; border-radius: 5px; font-size: 0.9em; font-weight: bold; 
         }
+        /* 担当者エリアを横並びにするスタイル */
+.badge-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.nickname-badge { 
+    background: #2ecc71; color: white; padding: 6px 15px; 
+    border-radius: 20px; font-weight: bold; font-size: 0.9em;
+    text-decoration: none; /* リンクの線を消す */
+    display: inline-block;
+    transition: background 0.2s;
+}
+.nickname-badge:hover { background: #27ae60; }
+
+.icon-btn {
+    background: #3788d8; color: white; width: 32px; height: 32px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    text-decoration: none; font-size: 1.1em;
+    transition: transform 0.2s;
+}
+.icon-btn:hover { transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -63,32 +87,35 @@
 
                 listDiv.innerHTML = "";
 
-                availData.forEach(item => {
-                    // 日時の整形
-                    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
-                    const startDate = new Date(cleanStart);
-                    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-                    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                data.forEach(item => {
+    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
+    const startDate = new Date(cleanStart);
+    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
-                    // 辞書から名前を引く
-                    const nickname = userMap[item.volunteer_id] || "名前未設定";
+    const nickname = userMap[item.volunteer_id] || "名前未設定";
+    const calendarUrl = `admin_calendar.html?vid=${item.volunteer_id}`;
 
-                    const card = document.createElement("div");
-                    card.className = "contract-card";
-                    card.innerHTML = `
-                        <div class="nickname-badge">👤 担当：${nickname}</div>
-                        <div class="date">${dateStr} ${timeStr}〜</div>
-                        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
-                        <div class="details">
-                            🆔 ボランティアID: ${item.volunteer_id}<br>
-                            📧 連絡先: ${item.restaurant_email || "未登録"}
-                        </div>
-                        <a href="admin_calendar.html?vid=${item.volunteer_id}" class="admin-btn">
-                           📅 この人のカレンダーを確認
-                        </a>
-                    `;
-                    listDiv.appendChild(card);
-                });
+    const card = document.createElement("div");
+    card.className = "contract-card";
+    card.innerHTML = `
+        <div class="badge-container">
+            <a href="${calendarUrl}" class="nickname-badge">
+                👤 担当：${nickname}
+            </a>
+            <a href="${calendarUrl}" class="icon-btn" title="カレンダーを確認">
+                📅
+            </a>
+        </div>
+        <div class="date">${dateStr} ${timeStr}〜</div>
+        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
+        <div class="details">
+            🆔 ボランティアID: ${item.volunteer_id}<br>
+            📧 連絡先: ${item.restaurant_email || "未登録"}
+        </div>
+    `;
+    listDiv.appendChild(card);
+});
 
             } catch (err) {
                 console.error(err);
