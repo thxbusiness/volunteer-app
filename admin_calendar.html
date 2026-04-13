@@ -14,33 +14,35 @@
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             margin: 0; padding: 10px; background-color: var(--bg-color); color: #333;
+            overflow-x: hidden; /* 横揺れ防止 */
         }
         .container {
             max-width: 100%; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
         h1 { text-align: center; font-size: 1.1rem; margin: 5px 0 15px; color: #1a1a1a; }
 
-        /* カレンダーの基本設定 */
-        .fc { font-size: 10px !important; }
-        .fc-toolbar-title { font-size: 13px !important; }
-        
-        /* 1時間あたりの縦幅を維持 */
-        .fc-timegrid-slot {
-            height: 40px !important; 
+        /* --- ここが重要：カレンダーの高さを画面に合わせて固定 --- */
+        .fc { 
+            font-size: 10px !important; 
+            height: 70vh !important; /* 画面高の70%に固定。残りの30%はヘッダーや余白用 */
         }
         
+        /* 1時間あたりの縦幅 */
+        .fc-timegrid-slot {
+            height: 45px !important; 
+        }
+        
+        .fc-toolbar-title { font-size: 13px !important; }
         .fc-day-past, .fc-timegrid-slot-past { background-color: #f5f5f5 !important; }
         .fc-v-event { padding: 1px 2px; border-radius: 4px; }
 
-        /* 独自ポップアップ（ドメイン表示対策） */
+        /* 独自ポップアップ */
         #custom-modal {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;
         }
         .modal-content { background: white; padding: 25px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; }
-        .modal-datetime { 
-            font-size: 18px; font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 15px; 
-        }
+        .modal-datetime { font-size: 18px; font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 15px; }
         .modal-text { font-size: 14px; margin-bottom: 20px; display: block; }
         .modal-buttons { display: flex; gap: 10px; justify-content: center; }
         .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
@@ -98,21 +100,19 @@ function initCalendar() {
         initialView: 'timeGridWeek',
         locale: 'ja',
         allDaySlot: false,
-        // --- 表示時間の拡張（7時〜23時） ---
         slotMinTime: "07:00:00",
         slotMaxTime: "23:00:00",
-        // --------------------------------
-        height: "auto",
+        scrollTime: "08:00:00", 
+        // --- 修正：高さを固定値(autoではなく)に設定 ---
+        height: "100%", 
+        // ------------------------------------------
         stickyHeaderDates: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
         dayHeaderFormat: { day: 'numeric', weekday: 'short', omitCommas: true },
 
         eventClick: async function(info) {
             const event = info.event;
-            const isBooked = event.extendedProps.booked;
-            const now = new Date();
-
-            if (isBooked) {
+            if (event.extendedProps.booked) {
                 const code = prompt("キャンセルコードを入力してください:");
                 if (!code) return;
                 if (String(code).trim() === String(event.extendedProps.cancel_code).trim()) {
@@ -127,15 +127,10 @@ function initCalendar() {
                 } else { alert("キャンセルコードが正しくありません。"); }
                 return;
             }
-
-            if (event.start < now) {
-                alert("過去の時間は予約できません。");
-                return;
-            }
+            if (event.start < new Date()) { alert("過去の時間は予約できません。"); return; }
             
             const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
             const timeStr = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
-
             openModal(dateStr, timeStr, event);
         }
     });
@@ -149,21 +144,12 @@ async function loadEvents() {
     const data = await res.json();
     calendar.removeAllEvents();
     const now = new Date();
-
     data.forEach(item => {
         const start = item.start_time.split('+')[0].split('Z')[0];
         const end = item.end_time.split('+')[0].split('Z')[0];
-        let bgColor = "#3788d8"; 
-        let titleText = "予約可能";
-
-        if (item.booked) {
-            bgColor = "#999";
-            titleText = `予約済: ${item.restaurant_name || ''}`;
-        } else if (new Date(start) < now) {
-            bgColor = "#bbb";
-            titleText = "終了";
-        }
-
+        let bgColor = "#3788d8"; let titleText = "予約可能";
+        if (item.booked) { bgColor = "#999"; titleText = `予約済: ${item.restaurant_name || ''}`; }
+        else if (new Date(start) < now) { bgColor = "#bbb"; titleText = "終了"; }
         calendar.addEvent({
             id: item.id, start, end, title: titleText, backgroundColor: bgColor, borderColor: bgColor,
             extendedProps: { booked: item.booked, cancel_code: item.cancel_code }
