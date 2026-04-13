@@ -33,9 +33,15 @@
             color: #1a1a1a;
         }
 
-        /* カレンダー調整 */
-        .fc { font-size: 0.85rem; }
-        .fc-toolbar-title { font-size: 1rem !important; }
+        /* カレンダー全体のフォントサイズを10pxに設定 */
+        .fc { 
+            font-size: 10px !important; 
+        }
+        
+        /* ヘッダーのタイトル（年月）は読みやすさのため少し大きめに維持 */
+        .fc-toolbar-title { 
+            font-size: 14px !important; 
+        }
         
         /* 過去のセルのグレーアウト */
         .fc-day-past, .fc-timegrid-slot-past { 
@@ -69,20 +75,22 @@ document.addEventListener('DOMContentLoaded', function() {
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek', // 週間表示を初期値に固定
+        initialView: 'timeGridWeek',
         locale: 'ja',
         allDaySlot: false,
         slotMinTime: "08:00:00",
         slotMaxTime: "22:00:00",
         height: "auto",
         stickyHeaderDates: true,
-        // ヘッダーから「週間/1日」の切替ボタンを削除
         headerToolbar: { 
             left: 'prev,next today', 
             center: 'title', 
             right: '' 
         },
         
+        // 日付ヘッダーの表示形式をカスタマイズ（月を除去）
+        dayHeaderFormat: { day: 'numeric', weekday: 'short', omitCommas: true },
+
         eventClick: async function(info) {
             const event = info.event;
             const isBooked = event.extendedProps.booked;
