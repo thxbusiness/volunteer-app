@@ -22,23 +22,17 @@
         }
         h1 { text-align: center; font-size: 1.1rem; margin: 5px 0 15px; color: #1a1a1a; }
 
-        /* カレンダーの高さ */
         .fc { 
             font-size: 10px !important; 
             height: 80vh !important; 
         }
-        
-        /* 1時間あたりの縦幅 */
         .fc-timegrid-slot { height: 22.5px !important; }
-        
-        /* --- 修正点：予約枠内の文字を中間の 11px に設定 --- */
         .fc-event-title { 
             font-size: 11px !important; 
             font-weight: bold !important;
             padding: 1px 2px !important;
             line-height: 1.2;
         }
-        
         .fc-toolbar-title { font-size: 13px !important; }
         .fc-day-past, .fc-timegrid-slot-past { background-color: #f5f5f5 !important; }
         .fc-v-event { border-radius: 4px; border: none !important; }
@@ -90,7 +84,28 @@
         <input type="text" id="cancel-code-input" class="cancel-input" placeholder="コードを入力">
         <div class="modal-buttons">
             <button class="btn btn-cancel" onclick="closeModal('cancel-modal')">閉じる</button>
-            <button id="cancel-confirm-btn" class="btn btn-danger">解除する</button>
+            <button id="cancel-confirm-btn" class="btn btn-danger">次へ</button>
+        </div>
+    </div>
+</div>
+
+<div id="confirm-modal" class="modal-overlay">
+    <div class="modal-content">
+        <span class="modal-title" style="color: var(--danger-color);">最終確認</span>
+        <span class="modal-text">本当にこの予約をキャンセルしますか？</span>
+        <div class="modal-buttons">
+            <button class="btn btn-cancel" onclick="closeModal('confirm-modal')">いいえ</button>
+            <button id="final-delete-btn" class="btn btn-danger">はい、解除します</button>
+        </div>
+    </div>
+</div>
+
+<div id="message-modal" class="modal-overlay">
+    <div class="modal-content">
+        <span id="message-title" class="modal-title">通知</span>
+        <span id="message-text" class="modal-text"></span>
+        <div class="modal-buttons">
+            <button class="btn btn-confirm" onclick="closeModal('message-modal')">OK</button>
         </div>
     </div>
 </div>
@@ -107,6 +122,12 @@ document.addEventListener('DOMContentLoaded', function() {
     initCalendar();
     loadEvents();
 });
+
+function showMessage(title, text) {
+    document.getElementById('message-title').innerText = title;
+    document.getElementById('message-text').innerText = text;
+    document.getElementById('message-modal').style.display = 'flex';
+}
 
 function openReserveModal(dateStr, timeStr, event) {
     document.getElementById('reserve-datetime').innerText = `${dateStr} ${timeStr}`;
@@ -125,25 +146,33 @@ function openCancelModal(event) {
     document.getElementById('cancel-modal').style.display = 'flex';
     setTimeout(() => input.focus(), 100);
     
-    document.getElementById('cancel-confirm-btn').onclick = async function() {
+    document.getElementById('cancel-confirm-btn').onclick = function() {
         const code = input.value.trim();
         if (!code) return;
         
         if (String(code) === String(event.extendedProps.cancel_code).trim()) {
-            if (confirm("本当にこの予約をキャンセルしますか？")) {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
-                    method: "PATCH",
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ booked: false, restaurant_name: null })
-                });
-                if (res.ok) { 
-                    closeModal('cancel-modal');
-                    alert("予約を解除しました。"); 
-                    loadEvents(); 
-                }
-            }
+            closeModal('cancel-modal');
+            openFinalConfirmModal(event);
         } else { 
-            alert("キャンセルコードが正しくありません。"); 
+            showMessage("エラー", "キャンセルコードが正しくありません。");
+        }
+    };
+}
+
+function openFinalConfirmModal(event) {
+    document.getElementById('confirm-modal').style.display = 'flex';
+    document.getElementById('final-delete-btn').onclick = async function() {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
+            method: "PATCH",
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ booked: false, restaurant_name: null })
+        });
+        if (res.ok) { 
+            closeModal('confirm-modal');
+            showMessage("完了", "予約を解除しました。"); 
+            loadEvents(); 
+        } else {
+            showMessage("エラー", "通信エラーが発生しました。");
         }
     };
 }
@@ -170,7 +199,10 @@ function initCalendar() {
                 openCancelModal(event);
                 return;
             }
-            if (event.start < new Date()) { alert("過去の時間は予約できません。"); return; }
+            if (event.start < new Date()) { 
+                showMessage("制限", "過去の時間は予約できません。");
+                return; 
+            }
             
             const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
             const timeStr = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
