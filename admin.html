@@ -58,18 +58,24 @@
                 nickname = Array.isArray(item.users) ? item.users[0]?.nickname : item.users.nickname;
             }
 
-            const card = document.createElement("div");
-            card.className = "contract-card";
-            card.innerHTML = `
-                <div class="nickname-badge">👤 担当：${nickname || "名前なし"}</div>
-                <div class="date">${dateStr} ${timeStr}〜</div>
-                <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
-                <div class="details">
-                    🆔 ボランティアID: ${item.volunteer_id}<br>
-                    📧 連絡先: ${item.restaurant_email || "未登録"}
-                </div>
-            `;
-            listDiv.appendChild(card);
+            // --- カードの生成部分を以下に差し替え ---
+const card = document.createElement("div");
+card.className = "contract-card";
+card.innerHTML = `
+    ${foundName ? `<div class="nickname-badge">👤 担当：${foundName}</div>` : ""}
+    <div class="date">${dateStr} ${timeStr}〜</div>
+    <div class="store-name">🏢 ${item.restaurant_name || "不明な店舗"}</div>
+    <div class="details">
+        🆔 ボランティアID: ${item.volunteer_id}<br>
+        📧 連絡先: ${item.restaurant_email || "未登録"}
+    </div>
+    <a href="admin_calendar.html?vid=${item.volunteer_id}" 
+       class="btn" 
+       style="display: block; text-align: center; margin-top: 15px; background: #28a745; text-decoration: none; color: white; padding: 8px; border-radius: 5px; font-size: 0.9em; font-weight: bold;">
+       📅 この人のカレンダーを確認
+    </a>
+`;
+listDiv.appendChild(card);
         });
 
     } catch (err) {
