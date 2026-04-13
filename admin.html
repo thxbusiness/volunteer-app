@@ -33,51 +33,49 @@
         const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
         async function fetchContracts() {
-            const listDiv = document.getElementById("contractList");
-            try {
-                // 修正：まずはリレーションを使わず、availabilityテーブルから直接データを取得
-                const url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&order=start_time.asc`;
-                
-                const response = await fetch(url, {
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-                });
-                
-                if (!response.ok) throw new Error("取得エラー");
-                const data = await response.json();
+    const listDiv = document.getElementById("contractList");
+    try {
+        // リレーションを含めて取得（usersテーブルとの紐付け）
+        const url = `${SUPABASE_URL}/rest/v1/availability?booked=eq.true&select=*,users(nickname)&order=start_time.asc`;
+        
+        const response = await fetch(url, {
+            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+        });
+        
+        const data = await response.json();
+        listDiv.innerHTML = "";
 
-                if (data.length === 0) {
-                    listDiv.innerHTML = "成立済みの契約はありません。";
-                    return;
-                }
+        data.forEach(item => {
+            const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
+            const startDate = new Date(cleanStart);
+            const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+            const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
-                listDiv.innerHTML = "";
-                data.forEach(item => {
-                    // 時差ボケ防止処理（カレンダー側と同様）
-                    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
-                    const startDate = new Date(cleanStart);
-                    
-                    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-                    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-
-                    const card = document.createElement("div");
-                    card.className = "contract-card";
-                    card.innerHTML = `
-                        <div class="date">${dateStr} ${timeStr}〜</div>
-                        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
-                        <div class="details">
-                            🆔 ボランティアID: ${item.volunteer_id}<br>
-                            📧 連絡先: ${item.restaurant_email || "未登録"}<br>
-                            🔑 キャンセルコード: ${item.cancel_code || "なし"}
-                        </div>
-                    `;
-                    listDiv.appendChild(card);
-                });
-
-            } catch (err) {
-                console.error(err);
-                listDiv.innerHTML = "データの取得に失敗しました。";
+            // --- 名前取得のロジック ---
+            let nickname = "名前未設定";
+            if (item.users) {
+                // usersが配列で返ってくる場合とオブジェクトで返ってくる場合の両方に対応
+                nickname = Array.isArray(item.users) ? item.users[0]?.nickname : item.users.nickname;
             }
-        }
+
+            const card = document.createElement("div");
+            card.className = "contract-card";
+            card.innerHTML = `
+                <div class="nickname-badge">👤 担当：${nickname || "名前なし"}</div>
+                <div class="date">${dateStr} ${timeStr}〜</div>
+                <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
+                <div class="details">
+                    🆔 ボランティアID: ${item.volunteer_id}<br>
+                    📧 連絡先: ${item.restaurant_email || "未登録"}
+                </div>
+            `;
+            listDiv.appendChild(card);
+        });
+
+    } catch (err) {
+        listDiv.innerHTML = "データの取得に失敗しました。";
+    }
+}
         fetchContracts();
     </script>
 </body>
