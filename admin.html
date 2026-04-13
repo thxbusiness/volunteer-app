@@ -13,27 +13,29 @@
         }
         
         /* 担当者エリアのレイアウト */
-        .badge-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-        .nickname-badge { 
-            background: #2ecc71; color: white; padding: 6px 15px; 
-            border-radius: 20px; font-weight: bold; font-size: 0.9em;
-            text-decoration: none; display: inline-block;
-            transition: background 0.2s;
-        }
-        .nickname-badge:hover { background: #27ae60; }
+.badge-container {
+    display: flex;
+    align-items: center;
+    gap: 5px; /* アイコンを名前に近づける */
+    margin-bottom: 12px;
+}
 
-        .icon-btn {
-            background: #3788d8; color: white; width: 34px; height: 34px;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            text-decoration: none; font-size: 1.2em;
-            transition: transform 0.2s, background 0.2s;
-        }
-        .icon-btn:hover { transform: scale(1.1); background: #2a6db0; }
+.nickname-badge { 
+    background: #2ecc71; color: white; padding: 6px 15px; 
+    border-radius: 20px; font-weight: bold; font-size: 0.9em;
+    text-decoration: none; display: inline-block;
+    transition: opacity 0.2s;
+}
+.nickname-badge:hover { opacity: 0.8; }
+
+/* 背景の青丸を消して、絵文字だけに */
+.icon-btn {
+    text-decoration: none; 
+    font-size: 1.3em; /* 少し大きくして押しやすく */
+    line-height: 1;
+    transition: transform 0.2s;
+}
+.icon-btn:hover { transform: scale(1.2); }
 
         .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
@@ -77,33 +79,32 @@
 
                 listDiv.innerHTML = "";
 
-                availData.forEach(item => {
-                    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
-                    const startDate = new Date(cleanStart);
-                    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-                    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                data.forEach(item => {
+    // ...（日時の整形処理はそのまま）...
 
-                    const nickname = userMap[item.volunteer_id] || "名前未設定";
-                    const calendarUrl = `admin_calendar.html?vid=${item.volunteer_id}`;
+    const nickname = userMap[item.volunteer_id] || "名前未設定";
+    const calendarUrl = `admin_calendar.html?vid=${item.volunteer_id}`;
 
-                    const card = document.createElement("div");
-                    card.className = "contract-card";
-                    card.innerHTML = `
-                        <div class="badge-container">
-                            <a href="${calendarUrl}" class="nickname-badge">
-                                👤 担当：${nickname}
-                            </a>
-                            <a href="${calendarUrl}" class="icon-btn" title="カレンダーを確認">📅</a>
-                        </div>
-                        <div class="date">${dateStr} ${timeStr}〜</div>
-                        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
-                        <div class="details">
-                            🆔 ボランティアID: ${item.volunteer_id}<br>
-                            📧 連絡先: ${item.restaurant_email || "未登録"}
-                        </div>
-                    `;
-                    listDiv.appendChild(card);
-                });
+    const card = document.createElement("div");
+    card.className = "contract-card";
+    card.innerHTML = `
+        <div class="badge-container">
+            <a href="${calendarUrl}" class="nickname-badge">
+                👤 担当：${nickname}
+            </a>
+            <a href="${calendarUrl}" class="icon-btn" title="カレンダーを確認">
+                📅
+            </a>
+        </div>
+        <div class="date">${dateStr} ${timeStr}〜</div>
+        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
+        <div class="details">
+            🆔 ボランティアID: ${item.volunteer_id}<br>
+            📧 連絡先: ${item.restaurant_email || "未登録"}
+        </div>
+    `;
+    listDiv.appendChild(card);
+});
 
             } catch (err) {
                 console.error(err);
