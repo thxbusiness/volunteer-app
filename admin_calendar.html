@@ -41,20 +41,19 @@ function initCalendar() {
             const event = info.event;
             const isBooked = event.extendedProps.booked;
 
+            // 1. 予約済みブロック（キャンセル処理）
             if (isBooked) {
                 const code = prompt("キャンセルコードを入力してください:");
                 if (!code) return;
 
                 const savedCode = event.extendedProps.cancel_code;
                 
-                // 文字列同士で比較
                 if (String(code).trim() === String(savedCode).trim()) {
                     if (confirm("予約をキャンセルして枠を空けますか？")) {
-                        // 【400エラー対策】PATCH送信データの厳格化
+                        // 【修正】存在するカラム（booked, restaurant_name）のみに修正
                         const updateData = {
                             booked: false,
-                            restaurant_name: null, // 明示的にnullを送信
-                            status: 'open'
+                            restaurant_name: null
                         };
 
                         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
@@ -73,7 +72,7 @@ function initCalendar() {
                         } else {
                             const errorText = await res.text();
                             console.error("Supabase Error:", errorText);
-                            alert("解除に失敗しました。詳細はコンソールを確認してください。");
+                            alert("解除に失敗しました。DBに'status'カラムがないことが原因でした。修正版を適用してください。");
                         }
                     }
                 } else {
@@ -82,7 +81,7 @@ function initCalendar() {
                 return;
             }
 
-            // 空き枠の場合：遷移
+            // 2. 空き枠（遷移処理）
             if (event.start < new Date()) return;
             
             const startTimeStr = event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
@@ -108,6 +107,7 @@ async function loadEvents() {
     calendar.removeAllEvents();
 
     data.forEach(item => {
+        // 時差補正（13:00が20:00になるのを防ぐ）
         const startTime = item.start_time.split('+')[0].split('Z')[0];
         const endTime = item.end_time.split('+')[0].split('Z')[0];
         
