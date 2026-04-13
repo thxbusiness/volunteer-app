@@ -16,56 +16,37 @@
             margin: 0; padding: 10px; background-color: var(--bg-color); color: #333;
         }
         .container {
-            max-width: 100%; margin: 0 auto; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            max-width: 100%; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
-        h1 { text-align: center; font-size: 1.2rem; margin: 10px 0 20px; color: #1a1a1a; }
-        .fc { font-size: 10px !important; }
-        .fc-toolbar-title { font-size: 14px !important; }
+        h1 { text-align: center; font-size: 1.1rem; margin: 5px 0 15px; color: #1a1a1a; }
+
+        /* --- カレンダーの表示調整 --- */
+        .fc { 
+            font-size: 10px !important; 
+            height: 75vh !important; /* スマホ画面で見やすい高さ */
+        }
+        /* 1時間あたりの縦幅を40pxに固定 */
+        .fc-timegrid-slot {
+            height: 40px !important; 
+        }
+        
+        .fc-toolbar-title { font-size: 13px !important; }
         .fc-day-past, .fc-timegrid-slot-past { background-color: #f5f5f5 !important; }
         .fc-v-event { padding: 1px 2px; border-radius: 4px; }
 
-        /* --- 独自ポップアップ（モーダル）のスタイル --- */
+        /* --- 独自ポップアップ（ドメイン名非表示用） --- */
         #custom-modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;
         }
-        .modal-content {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            width: 85%;
-            max-width: 320px;
-            text-align: center;
+        .modal-content { background: white; padding: 25px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; }
+        .modal-datetime { 
+            font-size: 18px; /* 日時を大きく強調 */
+            font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 15px; 
         }
-        .modal-datetime {
-            font-size: 18px; /* 日時を大きく */
-            font-weight: bold;
-            color: var(--primary-color);
-            display: block;
-            margin-bottom: 15px;
-        }
-        .modal-text {
-            font-size: 14px;
-            margin-bottom: 20px;
-            display: block;
-        }
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-        .btn {
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-        }
+        .modal-text { font-size: 14px; margin-bottom: 20px; display: block; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: center; }
+        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
         .btn-confirm { background: var(--primary-color); color: white; }
         .btn-cancel { background: #eee; color: #333; }
     </style>
@@ -101,25 +82,21 @@ document.addEventListener('DOMContentLoaded', function() {
     loadEvents();
 });
 
+// ポップアップを開く
 function openModal(dateStr, timeStr, event) {
     document.getElementById('modal-datetime').innerText = `${dateStr} ${timeStr}`;
-    const modal = document.getElementById('custom-modal');
-    modal.style.display = 'flex';
-
-    // 確定ボタンのイベントをセット
+    document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-confirm-btn').onclick = function() {
         const params = new URLSearchParams({
-            vid: VOLUNTEER_ID,
-            start: event.startStr,
-            end: event.endStr,
-            slot_id: event.id
+            vid: VOLUNTEER_ID, start: event.startStr, end: event.endStr, slot_id: event.id
         });
         window.location.href = `scan_select_mobile.html?${params.toString()}`;
     };
 }
 
-function closeModal() {
-    document.getElementById('custom-modal').style.display = 'none';
+// ポップアップを閉じる
+function closeModal() { 
+    document.getElementById('custom-modal').style.display = 'none'; 
 }
 
 function initCalendar() {
@@ -128,8 +105,11 @@ function initCalendar() {
         initialView: 'timeGridWeek',
         locale: 'ja',
         allDaySlot: false,
-        slotMinTime: "08:00:00",
-        slotMaxTime: "22:00:00",
+        // --- 24時間表示の設定 ---
+        slotMinTime: "00:00:00",
+        slotMaxTime: "24:00:00",
+        scrollTime: "08:00:00", // 開いた時に朝8時が一番上に来るように設定
+        // -----------------------
         height: "auto",
         stickyHeaderDates: true,
         headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
@@ -143,8 +123,7 @@ function initCalendar() {
             if (isBooked) {
                 const code = prompt("キャンセルコードを入力してください:");
                 if (!code) return;
-                const savedCode = event.extendedProps.cancel_code;
-                if (String(code).trim() === String(savedCode).trim()) {
+                if (String(code).trim() === String(event.extendedProps.cancel_code).trim()) {
                     if (confirm("予約をキャンセルしますか？")) {
                         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
                             method: "PATCH",
@@ -162,11 +141,12 @@ function initCalendar() {
                 return;
             }
             
+            // 日本語形式の月/日(曜) を作成
             const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
             const startTimeStr = event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
             const endTimeStr = event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
-            // ブラウザ標準 confirm をやめ、自作モーダルを呼び出す
+            // 自作ポップアップを表示
             openModal(dateStr, `${startTimeStr}〜${endTimeStr}`, event);
         }
     });
@@ -182,9 +162,9 @@ async function loadEvents() {
     const now = new Date();
 
     data.forEach(item => {
-        const startTimeRaw = item.start_time.split('+')[0].split('Z')[0];
-        const endTimeRaw = item.end_time.split('+')[0].split('Z')[0];
-        const eventStart = new Date(startTimeRaw);
+        const start = item.start_time.split('+')[0].split('Z')[0];
+        const end = item.end_time.split('+')[0].split('Z')[0];
+        const eventStart = new Date(start);
         
         let bgColor = "#3788d8"; 
         let titleText = "予約可能";
@@ -198,7 +178,7 @@ async function loadEvents() {
         }
 
         calendar.addEvent({
-            id: item.id, start: startTimeRaw, end: endTimeRaw, title: titleText, backgroundColor: bgColor, borderColor: bgColor,
+            id: item.id, start, end, title: titleText, backgroundColor: bgColor, borderColor: bgColor,
             extendedProps: { booked: item.booked, cancel_code: item.cancel_code }
         });
     });
