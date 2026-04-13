@@ -10,6 +10,7 @@
             --primary-color: #3788d8;
             --booked-color: #999;
             --bg-color: #f0f2f5;
+            --danger-color: #e53e3e;
         }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -21,33 +22,47 @@
         }
         h1 { text-align: center; font-size: 1.1rem; margin: 5px 0 15px; color: #1a1a1a; }
 
-        /* --- 修正箇所：カレンダーの高さを 80vh に拡大 --- */
+        /* カレンダーの高さと文字サイズ */
         .fc { 
             font-size: 10px !important; 
             height: 80vh !important; 
         }
         
-        /* 1時間あたりの縦幅（22.5px） */
-        .fc-timegrid-slot {
-            height: 22.5px !important; 
+        /* 1時間あたりの縦幅 */
+        .fc-timegrid-slot { height: 22.5px !important; }
+        
+        /* --- 修正点：予約枠内の文字を大きく・太く --- */
+        .fc-event-title { 
+            font-size: 12px !important; 
+            font-weight: bold !important;
+            padding: 2px !important;
         }
         
         .fc-toolbar-title { font-size: 13px !important; }
         .fc-day-past, .fc-timegrid-slot-past { background-color: #f5f5f5 !important; }
-        .fc-v-event { padding: 1px 2px; border-radius: 4px; }
+        .fc-v-event { border-radius: 4px; border: none !important; }
 
-        /* 独自ポップアップ */
-        #custom-modal {
+        /* 共通モーダル設定 */
+        .modal-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;
         }
         .modal-content { background: white; padding: 25px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; }
-        .modal-datetime { font-size: 18px; font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 15px; }
-        .modal-text { font-size: 14px; margin-bottom: 20px; display: block; }
+        .modal-title { font-size: 18px; font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 15px; }
+        .modal-text { font-size: 14px; margin-bottom: 20px; display: block; color: #666; }
+        
+        /* キャンセル用入力欄 */
+        .cancel-input {
+            width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px; margin-bottom: 20px;
+            box-sizing: border-box; font-size: 16px; text-align: center; outline: none;
+        }
+        .cancel-input:focus { border-color: var(--primary-color); }
+
         .modal-buttons { display: flex; gap: 10px; justify-content: center; }
-        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; flex: 1; }
         .btn-confirm { background: var(--primary-color); color: white; }
         .btn-cancel { background: #eee; color: #333; }
+        .btn-danger { background: var(--danger-color); color: white; }
     </style>
 </head>
 <body>
@@ -57,13 +72,25 @@
     <div id="calendar"></div>
 </div>
 
-<div id="custom-modal">
+<div id="reserve-modal" class="modal-overlay">
     <div class="modal-content">
-        <span id="modal-datetime" class="modal-datetime"></span>
+        <span id="reserve-datetime" class="modal-title"></span>
         <span class="modal-text">この枠で予約を進めますか？</span>
         <div class="modal-buttons">
-            <button class="btn btn-cancel" onclick="closeModal()">戻る</button>
-            <button id="modal-confirm-btn" class="btn btn-confirm">進む</button>
+            <button class="btn btn-cancel" onclick="closeModal('reserve-modal')">戻る</button>
+            <button id="reserve-confirm-btn" class="btn btn-confirm">進む</button>
+        </div>
+    </div>
+</div>
+
+<div id="cancel-modal" class="modal-overlay">
+    <div class="modal-content">
+        <span class="modal-title" style="color: var(--danger-color);">予約キャンセル</span>
+        <span class="modal-text">キャンセルコードを入力してください</span>
+        <input type="text" id="cancel-code-input" class="cancel-input" placeholder="コードを入力">
+        <div class="modal-buttons">
+            <button class="btn btn-cancel" onclick="closeModal('cancel-modal')">閉じる</button>
+            <button id="cancel-confirm-btn" class="btn btn-danger">解除する</button>
         </div>
     </div>
 </div>
@@ -81,10 +108,10 @@ document.addEventListener('DOMContentLoaded', function() {
     loadEvents();
 });
 
-function openModal(dateStr, timeStr, event) {
-    document.getElementById('modal-datetime').innerText = `${dateStr} ${timeStr}`;
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-confirm-btn').onclick = function() {
+function openReserveModal(dateStr, timeStr, event) {
+    document.getElementById('reserve-datetime').innerText = `${dateStr} ${timeStr}`;
+    document.getElementById('reserve-modal').style.display = 'flex';
+    document.getElementById('reserve-confirm-btn').onclick = function() {
         const params = new URLSearchParams({
             vid: VOLUNTEER_ID, start: event.startStr, end: event.endStr, slot_id: event.id
         });
@@ -92,7 +119,36 @@ function openModal(dateStr, timeStr, event) {
     };
 }
 
-function closeModal() { document.getElementById('custom-modal').style.display = 'none'; }
+function openCancelModal(event) {
+    const input = document.getElementById('cancel-code-input');
+    input.value = '';
+    document.getElementById('cancel-modal').style.display = 'flex';
+    input.focus();
+    
+    document.getElementById('cancel-confirm-btn').onclick = async function() {
+        const code = input.value.trim();
+        if (!code) return;
+        
+        if (String(code) === String(event.extendedProps.cancel_code).trim()) {
+            if (confirm("本当にこの予約をキャンセルしますか？")) {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
+                    method: "PATCH",
+                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ booked: false, restaurant_name: null })
+                });
+                if (res.ok) { 
+                    closeModal('cancel-modal');
+                    alert("予約を解除しました。"); 
+                    loadEvents(); 
+                }
+            }
+        } else { 
+            alert("キャンセルコードが正しくありません。"); 
+        }
+    };
+}
+
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
@@ -108,28 +164,17 @@ function initCalendar() {
         headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
         dayHeaderFormat: { day: 'numeric', weekday: 'short', omitCommas: true },
 
-        eventClick: async function(info) {
+        eventClick: function(info) {
             const event = info.event;
             if (event.extendedProps.booked) {
-                const code = prompt("キャンセルコードを入力してください:");
-                if (!code) return;
-                if (String(code).trim() === String(event.extendedProps.cancel_code).trim()) {
-                    if (confirm("予約をキャンセルしますか？")) {
-                        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
-                            method: "PATCH",
-                            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-                            body: JSON.stringify({ booked: false, restaurant_name: null })
-                        });
-                        if (res.ok) { alert("予約を解除しました。"); loadEvents(); }
-                    }
-                } else { alert("キャンセルコードが正しくありません。"); }
+                openCancelModal(event);
                 return;
             }
             if (event.start < new Date()) { alert("過去の時間は予約できません。"); return; }
             
             const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
             const timeStr = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
-            openModal(dateStr, timeStr, event);
+            openReserveModal(dateStr, timeStr, event);
         }
     });
     calendar.render();
