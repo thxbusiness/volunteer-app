@@ -21,10 +21,10 @@
         }
         h1 { text-align: center; font-size: 1.1rem; margin: 5px 0 15px; color: #1a1a1a; }
 
-        /* --- ここが重要：カレンダーの高さを画面に合わせて固定 --- */
+        /* カレンダーの高さを画面に合わせて固定 */
         .fc { 
             font-size: 10px !important; 
-            height: 70vh !important; /* 画面高の70%に固定。残りの30%はヘッダーや余白用 */
+            height: 70vh !important; /* 画面高の70%に固定 */
         }
         
         /* 1時間あたりの縦幅 */
@@ -94,68 +94,4 @@ function openModal(dateStr, timeStr, event) {
 
 function closeModal() { document.getElementById('custom-modal').style.display = 'none'; }
 
-function initCalendar() {
-    const calendarEl = document.getElementById('calendar');
-    calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        locale: 'ja',
-        allDaySlot: false,
-        slotMinTime: "07:00:00",
-        slotMaxTime: "23:00:00",
-        scrollTime: "08:00:00", 
-        // --- 修正：高さを固定値(autoではなく)に設定 ---
-        height: "100%", 
-        // ------------------------------------------
-        stickyHeaderDates: true,
-        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-        dayHeaderFormat: { day: 'numeric', weekday: 'short', omitCommas: true },
-
-        eventClick: async function(info) {
-            const event = info.event;
-            if (event.extendedProps.booked) {
-                const code = prompt("キャンセルコードを入力してください:");
-                if (!code) return;
-                if (String(code).trim() === String(event.extendedProps.cancel_code).trim()) {
-                    if (confirm("予約をキャンセルしますか？")) {
-                        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
-                            method: "PATCH",
-                            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-                            body: JSON.stringify({ booked: false, restaurant_name: null })
-                        });
-                        if (res.ok) { alert("予約を解除しました。"); loadEvents(); }
-                    }
-                } else { alert("キャンセルコードが正しくありません。"); }
-                return;
-            }
-            if (event.start < new Date()) { alert("過去の時間は予約できません。"); return; }
-            
-            const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
-            const timeStr = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
-            openModal(dateStr, timeStr, event);
-        }
-    });
-    calendar.render();
-}
-
-async function loadEvents() {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-    });
-    const data = await res.json();
-    calendar.removeAllEvents();
-    const now = new Date();
-    data.forEach(item => {
-        const start = item.start_time.split('+')[0].split('Z')[0];
-        const end = item.end_time.split('+')[0].split('Z')[0];
-        let bgColor = "#3788d8"; let titleText = "予約可能";
-        if (item.booked) { bgColor = "#999"; titleText = `予約済: ${item.restaurant_name || ''}`; }
-        else if (new Date(start) < now) { bgColor = "#bbb"; titleText = "終了"; }
-        calendar.addEvent({
-            id: item.id, start, end, title: titleText, backgroundColor: bgColor, borderColor: bgColor,
-            extendedProps: { booked: item.booked, cancel_code: item.cancel_code }
-        });
-    });
-}
-</script>
-</body>
-</html>
+function initCalendar
