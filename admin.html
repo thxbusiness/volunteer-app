@@ -11,44 +11,34 @@
             background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #3788d8;
         }
-        .nickname-badge { 
-            background: #2ecc71; color: white; padding: 4px 12px; 
-            border-radius: 20px; font-weight: bold; font-size: 0.9em;
-            display: inline-block; margin-bottom: 10px;
+        
+        /* 担当者エリアのレイアウト */
+        .badge-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
         }
+        .nickname-badge { 
+            background: #2ecc71; color: white; padding: 6px 15px; 
+            border-radius: 20px; font-weight: bold; font-size: 0.9em;
+            text-decoration: none; display: inline-block;
+            transition: background 0.2s;
+        }
+        .nickname-badge:hover { background: #27ae60; }
+
+        .icon-btn {
+            background: #3788d8; color: white; width: 34px; height: 34px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            text-decoration: none; font-size: 1.2em;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .icon-btn:hover { transform: scale(1.1); background: #2a6db0; }
+
         .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
         .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
-        .details { font-size: 0.85em; color: #666; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px; }
+        .details { font-size: 0.85em; color: #666; margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; }
         .refresh-btn { padding: 10px 20px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
-        .admin-btn { 
-            display: block; text-align: center; margin-top: 15px; 
-            background: #28a745; text-decoration: none; color: white; 
-            padding: 10px; border-radius: 5px; font-size: 0.9em; font-weight: bold; 
-        }
-        /* 担当者エリアを横並びにするスタイル */
-.badge-container {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 12px;
-}
-
-.nickname-badge { 
-    background: #2ecc71; color: white; padding: 6px 15px; 
-    border-radius: 20px; font-weight: bold; font-size: 0.9em;
-    text-decoration: none; /* リンクの線を消す */
-    display: inline-block;
-    transition: background 0.2s;
-}
-.nickname-badge:hover { background: #27ae60; }
-
-.icon-btn {
-    background: #3788d8; color: white; width: 32px; height: 32px;
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    text-decoration: none; font-size: 1.1em;
-    transition: transform 0.2s;
-}
-.icon-btn:hover { transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -64,19 +54,19 @@
         async function fetchContracts() {
             const listDiv = document.getElementById("contractList");
             try {
-                // 1. まずは契約データ（availability）だけを取得
+                // 1. 契約データを取得
                 const resAvail = await fetch(`${SUPABASE_URL}/rest/v1/availability?booked=eq.true&order=start_time.asc`, {
                     headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
                 });
                 const availData = await resAvail.json();
 
-                // 2. 次にユーザー名（users）だけを取得
+                // 2. ユーザー名を取得
                 const resUsers = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
                     headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
                 });
                 const userData = await resUsers.json();
 
-                // 3. ユーザーデータをIDをキーにした辞書にする
+                // 3. IDと名前を紐付ける辞書を作成
                 const userMap = {};
                 userData.forEach(u => { userMap[u.volunteer_id] = u.nickname; });
 
@@ -87,35 +77,33 @@
 
                 listDiv.innerHTML = "";
 
-                data.forEach(item => {
-    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
-    const startDate = new Date(cleanStart);
-    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                availData.forEach(item => {
+                    const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
+                    const startDate = new Date(cleanStart);
+                    const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
+                    const timeStr = startDate.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
-    const nickname = userMap[item.volunteer_id] || "名前未設定";
-    const calendarUrl = `admin_calendar.html?vid=${item.volunteer_id}`;
+                    const nickname = userMap[item.volunteer_id] || "名前未設定";
+                    const calendarUrl = `admin_calendar.html?vid=${item.volunteer_id}`;
 
-    const card = document.createElement("div");
-    card.className = "contract-card";
-    card.innerHTML = `
-        <div class="badge-container">
-            <a href="${calendarUrl}" class="nickname-badge">
-                👤 担当：${nickname}
-            </a>
-            <a href="${calendarUrl}" class="icon-btn" title="カレンダーを確認">
-                📅
-            </a>
-        </div>
-        <div class="date">${dateStr} ${timeStr}〜</div>
-        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
-        <div class="details">
-            🆔 ボランティアID: ${item.volunteer_id}<br>
-            📧 連絡先: ${item.restaurant_email || "未登録"}
-        </div>
-    `;
-    listDiv.appendChild(card);
-});
+                    const card = document.createElement("div");
+                    card.className = "contract-card";
+                    card.innerHTML = `
+                        <div class="badge-container">
+                            <a href="${calendarUrl}" class="nickname-badge">
+                                👤 担当：${nickname}
+                            </a>
+                            <a href="${calendarUrl}" class="icon-btn" title="カレンダーを確認">📅</a>
+                        </div>
+                        <div class="date">${dateStr} ${timeStr}〜</div>
+                        <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
+                        <div class="details">
+                            🆔 ボランティアID: ${item.volunteer_id}<br>
+                            📧 連絡先: ${item.restaurant_email || "未登録"}
+                        </div>
+                    `;
+                    listDiv.appendChild(card);
+                });
 
             } catch (err) {
                 console.error(err);
