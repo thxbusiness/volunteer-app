@@ -8,6 +8,8 @@
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { text-align: center; color: #333; }
+
+        /* カレンダー自体の過去のセルをグレーアウト */
         .fc-day-past { background-color: #f0f0f0 !important; }
         .fc-timegrid-slot-past { background-color: #f0f0f0 !important; }
     </style>
@@ -40,6 +42,7 @@ function initCalendar() {
         eventClick: async function(info) {
             const event = info.event;
             const isBooked = event.extendedProps.booked;
+            const now = new Date();
 
             // 1. 予約済みブロック（キャンセル処理）
             if (isBooked) {
@@ -47,33 +50,15 @@ function initCalendar() {
                 if (!code) return;
 
                 const savedCode = event.extendedProps.cancel_code;
-                
                 if (String(code).trim() === String(savedCode).trim()) {
                     if (confirm("予約をキャンセルして枠を空けますか？")) {
-                        // 【修正】存在するカラム（booked, restaurant_name）のみに修正
-                        const updateData = {
-                            booked: false,
-                            restaurant_name: null
-                        };
-
+                        const updateData = { booked: false, restaurant_name: null };
                         const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, {
                             method: "PATCH",
-                            headers: { 
-                                "apikey": API_KEY, 
-                                "Authorization": `Bearer ${API_KEY}`, 
-                                "Content-Type": "application/json"
-                            },
+                            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
                             body: JSON.stringify(updateData)
                         });
-
-                        if (res.ok) {
-                            alert("予約を解除しました。");
-                            loadEvents();
-                        } else {
-                            const errorText = await res.text();
-                            console.error("Supabase Error:", errorText);
-                            alert("解除に失敗しました。DBに'status'カラムがないことが原因でした。修正版を適用してください。");
-                        }
+                        if (res.ok) { alert("予約を解除しました。"); loadEvents(); }
                     }
                 } else {
                     alert("キャンセルコードが正しくありません。");
@@ -82,7 +67,11 @@ function initCalendar() {
             }
 
             // 2. 空き枠（遷移処理）
-            if (event.start < new Date()) return;
+            // すでに開始時間を過ぎている枠は予約不可とする
+            if (event.start < now) {
+                alert("過去の時間は予約できません。");
+                return;
+            }
             
             const startTimeStr = event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
             if (confirm(`${startTimeStr} の枠で予約を進めますか？`)) {
@@ -106,17 +95,32 @@ async function loadEvents() {
     const data = await res.json();
     calendar.removeAllEvents();
 
+    const now = new Date();
+
     data.forEach(item => {
-        // 時差補正（13:00が20:00になるのを防ぐ）
-        const startTime = item.start_time.split('+')[0].split('Z')[0];
-        const endTime = item.end_time.split('+')[0].split('Z')[0];
+        const startTimeRaw = item.start_time.split('+')[0].split('Z')[0];
+        const endTimeRaw = item.end_time.split('+')[0].split('Z')[0];
+        const eventStart = new Date(startTimeRaw);
         
+        // --- 色判定ロジック ---
+        let bgColor = "#3788d8"; // デフォルト（予約可能：青）
+        let titleText = "予約可能";
+
+        if (item.booked) {
+            bgColor = "#999"; // 予約済み：グレー
+            titleText = `予約済: ${item.restaurant_name || ''}`;
+        } else if (eventStart < now) {
+            bgColor = "#999"; // 過去の枠：グレー
+            titleText = "終了";
+        }
+
         calendar.addEvent({
             id: item.id,
-            start: startTime,
-            end: endTime,
-            title: item.booked ? `予約済: ${item.restaurant_name || ''}` : "予約可能",
-            backgroundColor: item.booked ? "#e74c3c" : "#3788d8",
+            start: startTimeRaw,
+            end: endTimeRaw,
+            title: titleText,
+            backgroundColor: bgColor,
+            borderColor: bgColor,
             extendedProps: {
                 booked: item.booked,
                 cancel_code: item.cancel_code 
