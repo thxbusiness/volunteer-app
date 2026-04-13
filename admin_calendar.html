@@ -3,184 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>予約選択カレンダー（週表示）</title>
-    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <title>予約カレンダー（管理者）</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; }
-        .header { background: #fff; padding: 15px; text-align: center; border-bottom: 1px solid #ddd; }
-        #calendar { background: #fff; padding: 10px; min-height: 85vh; }
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .calendar-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         
-        /* ポップアップのスタイル */
-        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 99; }
-        #popup { 
-            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            width: 85%; max-width: 400px; background: white; padding: 25px; border-radius: 15px; 
-            z-index: 100; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+        /* カレンダーの基本レイアウト */
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .cell { 
+            padding: 10px; border: 1px solid #ddd; border-radius: 4px; 
+            min-height: 80px; cursor: pointer; transition: background 0.2s;
         }
-        .btn-next { 
-            background: #007bff; color: white; border: none; padding: 15px 30px; 
-            border-radius: 30px; font-size: 1.1rem; font-weight: bold; cursor: pointer; 
-            width: 100%; margin-top: 15px; 
+        .cell:hover { background: #eef6ff; }
+
+        /* 過去の日時・グレーアウトのスタイル */
+        .cell-past { 
+            background-color: #f0f0f0 !important; 
+            color: #bbb; 
+            cursor: not-allowed; /* 禁止マークを表示 */
+            pointer-events: none; /* クリックを物理的に無効化 */
         }
-        /* 日付ヘッダー（12(日)など）のフォントサイズを調整 */
-        .fc-col-header-cell-cushion {
-        font-size: 10px; /* お好みのサイズ（例: 10px, 12px）に調整してください */
-        font-weight: normal; /* 太字を解除したい場合は追加 */
-        }
+        .cell-past .badge { background-color: #ccc !important; }
+
+        .date-num { font-weight: bold; margin-bottom: 5px; display: block; }
+        .badge { font-size: 0.75em; background: #3498db; color: white; padding: 2px 6px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-<div class="header"><h2>予約枠を選択（週表示）</h2></div>
-<div id="calendar"></div>
-
-<div id="overlay" onclick="closePopup()"></div>
-<div id="popup">
-    <h3 id="pop-date" style="margin:0;">日付</h3>
-    <p id="pop-time" style="color:#666; font-size:1.2rem; margin:10px 0 20px;">時間</p>
-    
-    <div id="section-reserve">
-        <button class="btn-next" onclick="goToNext()">この枠を承認・予約する</button>
+    <div class="calendar-container">
+        <h2 id="monthTitle">2026年4月</h2>
+        <div class="grid" id="calendarGrid">
+            </div>
     </div>
 
-    <div id="section-cancel" style="display:none; border-top:1px solid #eee; pt-15px;">
-        <p style="font-size:0.9rem; color:#e74c3c;">予約をキャンセルするにはコードを入力</p>
-        <input type="text" id="cancel-input" placeholder="4桁のコード" maxlength="4" 
-               style="width:80%; padding:10px; font-size:1.2rem; text-align:center; margin-bottom:10px;">
-        <button class="btn-next" style="background:#e74c3c;" onclick="processCancel()">予約を取り消す</button>
-    </div>
-</div>
-
-<script>
-const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
-
-const params = new URLSearchParams(location.search);
-const VOLUNTEER_ID = params.get("vid");
-
-let selectedId = null;
-
-document.addEventListener('DOMContentLoaded', function() {
-    const calendarEl = document.getElementById('calendar');
-    const calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        timeZone: 'local', // 日本時間を基準にする
-        locale: 'ja',
-        dayHeaderContent: function(arg) {
-        const date = arg.date;
-        const dayNum = date.getDate(); // 日にち (12)
-        const dayName = date.toLocaleDateString('ja-JP', { weekday: 'short' }); // 曜日 (日)
-        return dayNum + '(' + dayName + ')';
-    },
-        headerToolbar: {
-            left: 'prev,next',
-            center: 'title',
-            right: ''
-        },
-// 枠をクリックした時の処理
-        eventClick: function(info) {
-            selectedId = info.event.id;
-            const isBooked = info.event.extendedProps.booked;
+    <script>
+        function generateCalendar() {
+            const grid = document.getElementById("calendarGrid");
+            const now = new Date(); // 現在の時刻を取得
             
-            // ポップアップに日時を表示
-            document.getElementById('pop-date').innerText = info.event.start.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
-            document.getElementById('pop-time').innerText = info.event.start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) + " 〜";
-            
-            // 表示の切り替え（予約済みならキャンセル画面、空きなら承認画面）
-            if (isBooked) {
-                document.getElementById('section-reserve').style.display = 'none';
-                document.getElementById('section-cancel').style.display = 'block';
-                document.getElementById('cancel-input').value = ""; // 入力欄をクリア
-            } else {
-                document.getElementById('section-reserve').style.display = 'block';
-                document.getElementById('section-cancel').style.display = 'none';
+            // 例として4月のカレンダーを生成
+            for (let i = 1; i <= 30; i++) {
+                const cellDate = new Date(2026, 3, i, 23, 59); // その日の終わりの時刻
+                const cell = document.createElement("div");
+                cell.className = "cell";
+                
+                // --- 過去判定ロジック ---
+                // 1. 今日より前の日付
+                // 2. 今日であっても、予約枠の時間が現在時刻を過ぎている場合
+                // ※ ここでは「日」単位の判定例ですが、時間枠がある場合はその時間と比較します
+                if (cellDate < now) {
+                    cell.classList.add("cell-past");
+                } else {
+                    cell.onclick = () => openBookingForm(i);
+                }
+
+                cell.innerHTML = `
+                    <span class="date-num">${i}</span>
+                    ${cellDate >= now ? '<span class="badge">予約可</span>' : '<span class="badge">終了</span>'}
+                `;
+                grid.appendChild(cell);
             }
-
-            // ポップアップを表示
-            document.getElementById('overlay').style.display = 'block';
-            document.getElementById('popup').style.display = 'block';
         }
-    });
 
-    // --- ここから下はカレンダーの外側の関数です ---
-
-    // 読み込み関数（前回修正したものをそのまま使用）
-    async function loadEvents() {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-            headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-        calendar.removeAllEvents();
-        data.forEach(item => {
-            const cleanStart = item.start_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-            const cleanEnd = item.end_time.split('.')[0].replace('T', ' ').replace('Z', '').substring(0, 19);
-            calendar.addEvent({
-                id: item.id,
-                start: cleanStart,
-                end: cleanEnd,
-                title: item.booked ? "予約済" : "空き",
-                color: item.booked ? "#bdc3c7" : "#3498db",
-                extendedProps: { booked: item.booked }
-            });
-        });
-        calendar.render();
-    }
-
-    loadEvents();
-    calendar.render();
-});
-
-// ポップアップを閉じる
-function closePopup() {
-    document.getElementById('overlay').style.display = 'none';
-    document.getElementById('popup').style.display = 'none';
-}
-
-// 承認画面へ移動
-function goToNext() {
-    location.href = `scan_select_mobile.html?vid=${VOLUNTEER_ID}&slot_id=${selectedId}`;
-}
-
-// キャンセル処理（新しく追加）
-async function processCancel() {
-    const inputCode = document.getElementById('cancel-input').value;
-    if (!inputCode) return alert("キャンセルコードを入力してください");
-
-    // 1. コードの照合
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedId}`, {
-        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-    });
-    const data = await res.json();
-    const correctCode = data[0].cancel_code; //
-
-    if (inputCode !== correctCode) {
-        alert("キャンセルコードが一致しません");
-        return;
-    }
-
-    // 2. 予約の取り消し
-    if (confirm("本当に予約をキャンセルしますカ？")) {
-        const updateRes = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedId}`, {
-            method: "PATCH",
-            headers: {
-                "apikey": API_KEY,
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                booked: false,
-                restaurant_name: null,
-                restaurant_email: null,
-                cancel_code: null
-            })
-        });
-
-        if (updateRes.ok) {
-            alert("キャンセルが完了しました");
-            location.reload(); 
+        function openBookingForm(day) {
+            alert(day + "日の予約フォームを開きます");
+            // ここに既存のフォーム展開ロジックを記述
         }
-    }
-}
-</script>
+
+        generateCalendar();
+    </script>
 </body>
 </html>
