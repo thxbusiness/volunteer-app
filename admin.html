@@ -28,6 +28,7 @@
         }
         .nickname-badge:hover { opacity: 0.8; }
 
+        /* 背景の丸を消したシンプルなアイコン */
         .icon-btn {
             text-decoration: none; 
             font-size: 1.3em;
@@ -36,9 +37,26 @@
         }
         .icon-btn:hover { transform: scale(1.2); }
 
-        .date { font-weight: bold; color: #3788d8; font-size: 1.1em; }
-        .store-name { font-size: 1.2em; margin: 5px 0; color: #222; }
-        .details { font-size: 0.85em; color: #666; margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; }
+        .date { font-weight: bold; color: #3788d8; font-size: 1.1em; margin-bottom: 5px; }
+        .store-name { font-size: 1.2em; margin: 5px 0 2px 0; color: #222; }
+        
+        /* 店舗メールアドレスのスタイル */
+        .store-email {
+            font-size: 0.9em;
+            color: #555;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .details { 
+            font-size: 0.85em; 
+            color: #888; 
+            margin-top: 5px; 
+            border-top: 1px solid #eee; 
+            padding-top: 8px; 
+        }
         .refresh-btn { padding: 10px 20px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
     </style>
 </head>
@@ -78,9 +96,8 @@
 
                 listDiv.innerHTML = "";
 
-                // 修正ポイント：data ではなく availData を使う
                 availData.forEach(item => {
-                    // 日時の整形処理
+                    // 日時の整形
                     const cleanStart = item.start_time.split('+')[0].replace('T', ' ');
                     const startDate = new Date(cleanStart);
                     const dateStr = startDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' });
@@ -102,9 +119,13 @@
                         </div>
                         <div class="date">${dateStr} ${timeStr}〜</div>
                         <div class="store-name">🏢 ${item.restaurant_name || "店舗名なし"}</div>
+                        
+                        <div class="store-email">
+                            📧 ${item.restaurant_email || "メール未登録"}
+                        </div>
+
                         <div class="details">
-                            🆔 ボランティアID: ${item.volunteer_id}<br>
-                            📧 連絡先: ${item.restaurant_email || "未登録"}
+                            🆔 ボランティアID: ${item.volunteer_id}
                         </div>
                     `;
                     listDiv.appendChild(card);
