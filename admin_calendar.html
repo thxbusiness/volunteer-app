@@ -5,28 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>予約カレンダー（管理者）</title>
     <style>
+        /* calendar_volunteer.html と同じスタイルを維持 */
         body { font-family: sans-serif; margin: 20px; background-color: #f4f7f6; }
         .calendar-container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { color: #333; border-bottom: 2px solid #3788d8; padding-bottom: 10px; }
         
-        /* カレンダーの基本レイアウト */
-        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-        .cell { 
-            padding: 10px; border: 1px solid #ddd; border-radius: 4px; 
-            min-height: 80px; cursor: pointer; transition: background 0.2s;
-        }
-        .cell:hover { background: #eef6ff; }
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #ddd; border: 1px solid #ddd; }
+        .cell { background: white; padding: 10px; min-height: 100px; position: relative; }
+        .header-cell { background: #f8f9fa; font-weight: bold; text-align: center; padding: 10px; }
 
-        /* 過去の日時・グレーアウトのスタイル */
+        /* 過去の枠：グレーアウト表示 */
         .cell-past { 
-            background-color: #f0f0f0 !important; 
-            color: #bbb; 
-            cursor: not-allowed; /* 禁止マークを表示 */
-            pointer-events: none; /* クリックを物理的に無効化 */
+            background-color: #f9f9f9; 
+            color: #ccc; 
+            cursor: not-allowed; 
         }
-        .cell-past .badge { background-color: #ccc !important; }
+        /* 過去の枠内のバッジやボタンを非表示、または色変更 */
+        .cell-past .badge { background-color: #ddd !important; color: #aaa !important; }
+        .cell-past * { pointer-events: none; } /* セル内の全要素のクリックを無効化 */
 
         .date-num { font-weight: bold; margin-bottom: 5px; display: block; }
-        .badge { font-size: 0.75em; background: #3498db; color: white; padding: 2px 6px; border-radius: 10px; }
+        .badge { 
+            display: block; font-size: 0.8em; background: #3788d8; color: white; 
+            padding: 4px 8px; border-radius: 4px; margin-top: 5px; cursor: pointer; text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -34,41 +36,43 @@
     <div class="calendar-container">
         <h2 id="monthTitle">2026年4月</h2>
         <div class="grid" id="calendarGrid">
+            <div class="header-cell">日</div><div class="header-cell">月</div>
+            <div class="header-cell">火</div><div class="header-cell">水</div>
+            <div class="header-cell">木</div><div class="header-cell">金</div>
+            <div class="header-cell">土</div>
             </div>
     </div>
 
     <script>
         function generateCalendar() {
             const grid = document.getElementById("calendarGrid");
-            const now = new Date(); // 現在の時刻を取得
-            
-            // 例として4月のカレンダーを生成
+            const now = new Date(); // 現在時刻
+
             for (let i = 1; i <= 30; i++) {
-                const cellDate = new Date(2026, 3, i, 23, 59); // その日の終わりの時刻
+                // その日の「終了」判定用の時刻を作成（例：23時59分までをその日の枠とする場合）
+                // より厳密に「現在の時間」で判定する場合は、予約枠ごとの時間と比較させます
+                const cellDate = new Date(2026, 3, i, 23, 59); 
+                
                 const cell = document.createElement("div");
                 cell.className = "cell";
                 
                 // --- 過去判定ロジック ---
-                // 1. 今日より前の日付
-                // 2. 今日であっても、予約枠の時間が現在時刻を過ぎている場合
-                // ※ ここでは「日」単位の判定例ですが、時間枠がある場合はその時間と比較します
-                if (cellDate < now) {
+                const isPast = cellDate < now;
+                if (isPast) {
                     cell.classList.add("cell-past");
-                } else {
-                    cell.onclick = () => openBookingForm(i);
                 }
 
                 cell.innerHTML = `
                     <span class="date-num">${i}</span>
-                    ${cellDate >= now ? '<span class="badge">予約可</span>' : '<span class="badge">終了</span>'}
+                    ${!isPast ? `<div class="badge" onclick="openForm(${i})">予約登録</div>` : `<div class="badge">終了</div>`}
                 `;
                 grid.appendChild(cell);
             }
         }
 
-        function openBookingForm(day) {
-            alert(day + "日の予約フォームを開きます");
-            // ここに既存のフォーム展開ロジックを記述
+        function openForm(day) {
+            console.log(day + "日の予約フォームを開きます");
+            // ここに既存のフォーム呼び出しロジックを記述
         }
 
         generateCalendar();
