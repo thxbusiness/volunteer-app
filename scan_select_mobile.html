@@ -12,161 +12,136 @@
         input[type="text"], input[type="email"] { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         
         .checkbox-container { margin: 20px 0; display: flex; align-items: center; background: #fff9db; padding: 15px; border-radius: 8px; border: 1px solid #fab005; }
-        #approve-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
-        #approve-btn:disabled { background: #ccc; cursor: not-allowed; }
+        input[type="checkbox"] { transform: scale(1.5); margin-right: 15px; cursor: pointer; }
         
-        /* モーダル共通設定 */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
-        .modal-content { background: white; width: 85%; max-width: 350px; padding: 25px; border-radius: 20px; text-align: center; }
-        .passcode-display { font-size: 3rem; font-weight: bold; color: #e67e22; letter-spacing: 5px; margin: 20px 0; background: #fff5e6; padding: 10px; border-radius: 10px; border: 2px dashed #e67e22; }
-        .btn-final { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; margin-top: 10px; font-weight: bold; }
-        .btn-send { background: #007bff; color: white; }
-        .btn-back { background: #eee; color: #666; }
+        #approve-btn { 
+            width: 100%; padding: 15px; background: #3788d8; color: white; border: none; 
+            border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+        #approve-btn:disabled { background: #ccc; cursor: not-allowed; opacity: 0.6; }
 
-        #loading { display: none; text-align: center; color: #007bff; font-weight: bold; margin-top: 10px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
+        .modal-content { background: white; width: 85%; max-width: 400px; margin: 20% auto; padding: 20px; border-radius: 12px; text-align: center; }
+        .loading { display: none; margin: 20px 0; font-size: 14px; color: #666; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <div class="card">
-    <h3>承認フォーム</h3>
-    
-    <label class="label">店舗名（必須）</label>
-    <input id="restaurantName" placeholder="例：居酒屋ぽんぽこ" oninput="validate()">
+    <h3>✅ 予約承認</h3>
+    <p id="slot-info" style="font-size: 0.9rem; color: #666;">読み込み中...</p>
+
+    <label class="label">店舗名</label>
+    <input id="restaurantName" type="text" placeholder="例：カフェ・サンプル" oninput="validate()">
 
     <label class="label">メールアドレス（キャンセルコード送信用）</label>
-    <input id="restaurantEmail" type="email" placeholder="example@email.com">
+    <input id="restaurantEmail" type="email" placeholder="example@email.com" oninput="validate()">
 
     <div class="checkbox-container">
-        <input type="checkbox" id="mealCheck" onchange="validate()" style="width:22px; height:22px; margin-right:12px;">
-        <label for="mealCheck" style="font-size:0.95rem; font-weight:bold;">まかない提供を約束する</label>
+        <input type="checkbox" id="mealCheck" onchange="validate()">
+        <label for="mealCheck" style="font-size: 0.9rem; cursor: pointer;">
+            本日のまかない（食事）を1食提供することに同意します。
+        </label>
     </div>
 
-    <button id="approve-btn" disabled onclick="showConfirm()">承認・パスコード発行へ</button>
-    <div id="loading">処理中...</div>
+    <button id="approve-btn" disabled onclick="openConfirmModal()">承認してメールを送信</button>
 </div>
 
-<div id="confirm-modal" class="modal-overlay">
+<div id="confirm-modal" class="modal">
     <div class="modal-content">
-        <h2 style="margin:0; font-size:1.4rem;">最終確認</h2>
-        <p style="color:#666; font-size:0.9rem;">以下のパスコードが発行されます</p>
-        
-        <div id="passcode-val" class="passcode-display">0000</div>
-        
-        <div style="text-align:left; font-size:0.9rem; background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom: 10px;">
-            <strong>店舗名:</strong> <span id="conf-name"></span><br>
-            <strong>通知先:</strong> ボランティア本人
+        <h4>最終確認</h4>
+        <p>予約を確定し、ボランティアへ通知メールを送信します。よろしいですか？</p>
+        <div id="loading" class="loading">処理中...</div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button onclick="closeModal('confirm-modal')" style="flex:1; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">キャンセル</button>
+            <button id="send-btn" onclick="executeApprove()" style="flex:1; padding: 10px; background: #3788d8; color: white; border: none; border-radius: 5px;">送信する</button>
         </div>
-        
-        <button id="final-submit-btn" class="btn-final btn-send" onclick="finalSubmit()">送信（メールを飛ばす）</button>
-        <button class="btn-final btn-back" onclick="closeModal('confirm-modal')">修正する</button>
-    </div>
-</div>
-
-<div id="result-modal" class="modal-overlay">
-    <div class="modal-content">
-        <h2 id="result-title" style="margin:0; font-size:1.4rem;">通知</h2>
-        <p id="result-text" style="color:#666; font-size:0.9rem; margin: 20px 0;"></p>
-        <button id="result-btn" class="btn-final btn-send" onclick="handleResultClose()">OK</button>
     </div>
 </div>
 
 <script>
-const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
-const MAKE_URL = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z";
+    const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+    const MAKE_URL = "https://hook.us2.make.com/6h0uqu6v775267x50p56g17h892b1a1c"; // 送信先URL
+    const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
-const params = new URLSearchParams(location.search);
-const SLOT_ID = params.get("slot_id");
-const VOLUNTEER_ID = params.get("vid");
+    const urlParams = new URLSearchParams(window.location.search);
+    const SLOT_ID = urlParams.get('id');
+    const VOLUNTEER_ID = urlParams.get('vid');
 
-let generatedPasscode = "";
-let isSuccess = false;
-
-function validate() {
-    const name = document.getElementById("restaurantName").value;
-    const meal = document.getElementById("mealCheck").checked;
-    document.getElementById("approve-btn").disabled = !(name && meal);
-}
-
-function showConfirm() {
-    generatedPasscode = Math.floor(1000 + Math.random() * 9000).toString();
-    document.getElementById("passcode-val").innerText = generatedPasscode;
-    document.getElementById("conf-name").innerText = document.getElementById("restaurantName").value;
-    document.getElementById("confirm-modal").style.display = "flex";
-}
-
-function closeModal(id) {
-    document.getElementById(id).style.display = "none";
-}
-
-function showResult(title, text, success = false) {
-    isSuccess = success;
-    document.getElementById("result-title").innerText = title;
-    document.getElementById("result-text").innerText = text;
-    document.getElementById("result-modal").style.display = "flex";
-}
-
-function handleResultClose() {
-    closeModal('result-modal');
-    if (isSuccess) {
-        window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}`;
+    // 初期表示
+    if (SLOT_ID) {
+        document.getElementById("slot-info").innerText = `予約枠ID: ${SLOT_ID} を処理します。`;
     }
-}
 
-async function finalSubmit() {
-    const name = document.getElementById("restaurantName").value;
-    const email = document.getElementById("restaurantEmail").value;
-    
-    const sendBtn = document.getElementById("final-submit-btn");
-    sendBtn.innerText = "送信中...";
-    sendBtn.disabled = true;
-    document.getElementById("loading").style.display = "block";
-
-    try {
-        // 1. Supabase 更新
-        const resSupabase = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${SLOT_ID}`, {
-            method: "PATCH",
-            headers: {
-                "apikey": API_KEY,
-                "Authorization": `Bearer ${API_KEY}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                booked: true,
-                restaurant_name: name,
-                restaurant_email: email,
-                cancel_code: generatedPasscode
-            })
-        });
-
-        if(!resSupabase.ok) throw new Error("DB更新エラー");
-
-        // 2. Make.com Webhook送信
-        await fetch(MAKE_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                type: "契約成立通知",
-                restaurant_name: name,
-                restaurant_email: email,
-                cancel_code: generatedPasscode,
-                volunteer_id: VOLUNTEER_ID
-            })
-        });
-
-        closeModal('confirm-modal');
-        showResult("承認完了", "承認が完了しました！\nボランティアへパスコード付きのメールを送信しました。", true);
-
-    } catch (e) {
-        console.error(e);
-        closeModal('confirm-modal');
-        showResult("エラー", "処理中にエラーが発生しました。");
-        sendBtn.innerText = "送信（メールを飛ばす）";
-        sendBtn.disabled = false;
-        document.getElementById("loading").style.display = "none";
+    // 3点バリデーション
+    function validate() {
+        const name = document.getElementById("restaurantName").value.trim();
+        const email = document.getElementById("restaurantEmail").value.trim();
+        const meal = document.getElementById("mealCheck").checked;
+        
+        // 簡易メール形式チェック
+        const isEmailValid = email.includes('@') && email.includes('.');
+        
+        // 全て揃ったらボタンを有効化
+        document.getElementById("approve-btn").disabled = !(name && email && isEmailValid && meal);
     }
-}
+
+    function openConfirmModal() { document.getElementById("confirm-modal").style.display = "block"; }
+    function closeModal(id) { document.getElementById(id).style.display = "none"; }
+
+    async function executeApprove() {
+        const name = document.getElementById("restaurantName").value;
+        const email = document.getElementById("restaurantEmail").value;
+        const sendBtn = document.getElementById("send-btn");
+        const generatedPasscode = Math.floor(1000 + Math.random() * 9000); // 4桁コード
+
+        sendBtn.disabled = true;
+        sendBtn.innerText = "送信中...";
+        document.getElementById("loading").style.display = "block";
+
+        try {
+            // 1. Supabaseの予約状況を更新
+            const { error: dbError } = await supabaseClient
+                .from('availability')
+                .update({ 
+                    booked: true, 
+                    restaurant_name: name, 
+                    restaurant_email: email, 
+                    cancel_code: generatedPasscode.toString() 
+                })
+                .eq('id', SLOT_ID);
+
+            if (dbError) throw dbError;
+
+            // 2. Make.com Webhookへ通知送信
+            await fetch(MAKE_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    type: "契約成立通知",
+                    restaurant_name: name,
+                    restaurant_email: email,
+                    cancel_code: generatedPasscode,
+                    volunteer_id: VOLUNTEER_ID,
+                    slot_id: SLOT_ID
+                })
+            });
+
+            alert("承認が完了しました！メールを送信しました。");
+            // 管理カレンダーへ戻る
+            window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}`;
+
+        } catch (e) {
+            console.error(e);
+            alert("エラーが発生しました。入力を確認してください。");
+            sendBtn.disabled = false;
+            sendBtn.innerText = "送信する";
+            document.getElementById("loading").style.display = "none";
+        }
+    }
 </script>
+
 </body>
 </html>
