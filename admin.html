@@ -34,13 +34,12 @@
         const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
         const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
-        // 1. URLから自分のvidを取得
         const urlParams = new URLSearchParams(window.location.search);
         const VOLUNTEER_ID = urlParams.get("vid");
 
         async function fetchContracts() {
             if (!VOLUNTEER_ID) {
-                document.getElementById("contractList").innerHTML = "ボランティアIDが見つかりません。再ログインしてください。";
+                document.getElementById("contractList").innerHTML = "ボランティアIDが見つかりません。";
                 return;
             }
 
@@ -48,7 +47,7 @@
             const now = new Date();
 
             try {
-                // 2. 自分のデータ(volunteer_id一致)かつ予約済み(booked=true)のみを取得
+                // 自分のデータのみを取得
                 const [resAvail, resUser] = await Promise.all([
                     fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}&booked=eq.true&order=start_time.desc`, {
                         headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
@@ -61,7 +60,6 @@
                 const availData = await resAvail.json();
                 const userData = await resUser.json();
                 
-                // ニックネームをタイトルに反映
                 if (userData.length > 0) {
                     document.getElementById("pageTitle").innerText = `🤝 ${userData[0].nickname}さんの契約一覧`;
                 }
@@ -97,6 +95,20 @@
             }
         }
 
+        // --- 修正点: リアルタイム監視機能の追加 ---
+        supabaseClient
+          .channel('schema-db-changes')
+          .on('postgres_changes', { 
+              event: '*', 
+              schema: 'public', 
+              table: 'availability' 
+          }, (payload) => {
+              console.log('変化を検知しました:', payload);
+              fetchContracts(); // 変化があったらリストを再読み込み
+          })
+          .subscribe();
+
+        // 初回読み込み
         fetchContracts();
     </script>
 </body>
