@@ -32,14 +32,14 @@
     <h3>承認フォーム</h3>
     
     <label class="label">店舗名（必須）</label>
-    <input id="restaurantName" placeholder="例：レストランたかぎ" oninput="validate()">
+    <input id="restaurantName" placeholder="例：居酒屋ぽんぽこ" oninput="validate()">
 
-    <label class="label">メールアドレス（パスコード送信用）</label>
+    <label class="label">メールアドレス（キャンセルコード送信用）</label>
     <input id="restaurantEmail" type="email" placeholder="example@email.com">
 
     <div class="checkbox-container">
         <input type="checkbox" id="mealCheck" onchange="validate()" style="width:22px; height:22px; margin-right:12px;">
-        <label for="mealCheck" style="font-size:0.95rem; font-weight:bold;">まかない提供を確約する</label>
+        <label for="mealCheck" style="font-size:0.95rem; font-weight:bold;">まかない提供を約束する</label>
     </div>
 
     <button id="approve-btn" disabled onclick="showConfirm()">承認・パスコード発行へ</button>
