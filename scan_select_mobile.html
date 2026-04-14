@@ -15,7 +15,8 @@
         #approve-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
         #approve-btn:disabled { background: #ccc; cursor: not-allowed; }
         
-        #confirm-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
+        /* モーダル共通設定 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
         .modal-content { background: white; width: 85%; max-width: 350px; padding: 25px; border-radius: 20px; text-align: center; }
         .passcode-display { font-size: 3rem; font-weight: bold; color: #e67e22; letter-spacing: 5px; margin: 20px 0; background: #fff5e6; padding: 10px; border-radius: 10px; border: 2px dashed #e67e22; }
         .btn-final { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; margin-top: 10px; font-weight: bold; }
@@ -45,20 +46,28 @@
     <div id="loading">処理中...</div>
 </div>
 
-<div id="confirm-modal">
+<div id="confirm-modal" class="modal-overlay">
     <div class="modal-content">
         <h2 style="margin:0; font-size:1.4rem;">最終確認</h2>
         <p style="color:#666; font-size:0.9rem;">以下のパスコードが発行されます</p>
         
         <div id="passcode-val" class="passcode-display">0000</div>
         
-        <div style="text-align:left; font-size:0.9rem; background:#f8f9fa; padding:10px; border-radius:8px;">
+        <div style="text-align:left; font-size:0.9rem; background:#f8f9fa; padding:10px; border-radius:8px; margin-bottom: 10px;">
             <strong>店舗名:</strong> <span id="conf-name"></span><br>
             <strong>通知先:</strong> ボランティア本人
         </div>
         
-        <button class="btn-final btn-send" onclick="finalSubmit()">送信（メールを飛ばす）</button>
-        <button class="btn-final btn-back" onclick="closeConfirm()">修正する</button>
+        <button id="final-submit-btn" class="btn-final btn-send" onclick="finalSubmit()">送信（メールを飛ばす）</button>
+        <button class="btn-final btn-back" onclick="closeModal('confirm-modal')">修正する</button>
+    </div>
+</div>
+
+<div id="result-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h2 id="result-title" style="margin:0; font-size:1.4rem;">通知</h2>
+        <p id="result-text" style="color:#666; font-size:0.9rem; margin: 20px 0;"></p>
+        <button id="result-btn" class="btn-final btn-send" onclick="handleResultClose()">OK</button>
     </div>
 </div>
 
@@ -69,9 +78,10 @@ const MAKE_URL = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z";
 
 const params = new URLSearchParams(location.search);
 const SLOT_ID = params.get("slot_id");
-const VOL_ID = params.get("vid");
+const VOLUNTEER_ID = params.get("vid");
 
 let generatedPasscode = "";
+let isSuccess = false;
 
 function validate() {
     const name = document.getElementById("restaurantName").value;
@@ -86,15 +96,29 @@ function showConfirm() {
     document.getElementById("confirm-modal").style.display = "flex";
 }
 
-function closeConfirm() {
-    document.getElementById("confirm-modal").style.display = "none";
+function closeModal(id) {
+    document.getElementById(id).style.display = "none";
+}
+
+function showResult(title, text, success = false) {
+    isSuccess = success;
+    document.getElementById("result-title").innerText = title;
+    document.getElementById("result-text").innerText = text;
+    document.getElementById("result-modal").style.display = "flex";
+}
+
+function handleResultClose() {
+    closeModal('result-modal');
+    if (isSuccess) {
+        window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}`;
+    }
 }
 
 async function finalSubmit() {
     const name = document.getElementById("restaurantName").value;
     const email = document.getElementById("restaurantEmail").value;
     
-    const sendBtn = document.querySelector(".btn-send");
+    const sendBtn = document.getElementById("final-submit-btn");
     sendBtn.innerText = "送信中...";
     sendBtn.disabled = true;
     document.getElementById("loading").style.display = "block";
@@ -112,7 +136,7 @@ async function finalSubmit() {
                 booked: true,
                 restaurant_name: name,
                 restaurant_email: email,
-                cancel_code: generatedPasscode // Supabase側
+                cancel_code: generatedPasscode
             })
         });
 
@@ -126,17 +150,18 @@ async function finalSubmit() {
                 type: "契約成立通知",
                 restaurant_name: name,
                 restaurant_email: email,
-                cancel_code: generatedPasscode, // Make.com側も cancel_code に統一
-                volunteer_id: VOL_ID
+                cancel_code: generatedPasscode,
+                volunteer_id: VOLUNTEER_ID
             })
         });
 
-        alert("承認が完了しました！\nボランティアへパスコード付きのメールを送信しました。");
-        window.location.href = `admin_calendar.html?vid=${VOL_ID}`;
+        closeModal('confirm-modal');
+        showResult("承認完了", "承認が完了しました！\nボランティアへパスコード付きのメールを送信しました。", true);
 
     } catch (e) {
-        alert("エラーが発生しました。");
         console.error(e);
+        closeModal('confirm-modal');
+        showResult("エラー", "処理中にエラーが発生しました。");
         sendBtn.innerText = "送信（メールを飛ばす）";
         sendBtn.disabled = false;
         document.getElementById("loading").style.display = "none";
