@@ -31,11 +31,11 @@
 <div class="card">
     <h3>承認フォーム</h3>
     
-    <label class="label">店舗名（必須）</label>
+    <label class="label">店舗名</label>
     <input id="restaurantName" placeholder="例：居酒屋ぽんぽこ" oninput="validate()">
 
     <label class="label">メールアドレス（キャンセルコード送信用）</label>
-    <input id="restaurantEmail" type="email" placeholder="example@email.com">
+<input id="restaurantEmail" type="email" placeholder="example@email.com" oninput="validate()">
 
     <div class="checkbox-container">
         <input type="checkbox" id="mealCheck" onchange="validate()" style="width:22px; height:22px; margin-right:12px;">
@@ -84,9 +84,15 @@ let generatedPasscode = "";
 let isSuccess = false;
 
 function validate() {
-    const name = document.getElementById("restaurantName").value;
+    const name = document.getElementById("restaurantName").value.trim();
+    const email = document.getElementById("restaurantEmail").value.trim();
     const meal = document.getElementById("mealCheck").checked;
-    document.getElementById("approve-btn").disabled = !(name && meal);
+    
+    // メールアドレスに「@」が含まれているかも条件に加えるとより確実です
+    const isEmailValid = email.includes('@');
+
+    // 名前があり、メールが有効で、チェックが入っている場合のみ有効化
+    document.getElementById("approve-btn").disabled = !(name && isEmailValid && meal);
 }
 
 function showConfirm() {
