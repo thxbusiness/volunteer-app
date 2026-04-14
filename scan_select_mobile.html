@@ -9,7 +9,11 @@
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
         h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
         .label { font-weight: bold; font-size: 0.9rem; display: block; margin-top: 15px; }
-        input[type="text"], input[type="email"] { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        
+        /* 店舗名とメールアドレス両方に同じデザインを適用 */
+        input[type="text"], input[type="email"] { 
+            width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; 
+        }
         
         .checkbox-container { margin: 20px 0; display: flex; align-items: center; background: #fff9db; padding: 15px; border-radius: 8px; border: 1px solid #fab005; }
         #approve-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
@@ -32,10 +36,10 @@
     <h3>承認フォーム</h3>
     
     <label class="label">店舗名</label>
-    <input id="restaurantName" placeholder="例：居酒屋ぽんぽこ" oninput="validate()">
+    <input id="restaurantName" type="text" placeholder="例：居酒屋ぽんぽこ" oninput="validate()">
 
     <label class="label">メールアドレス（キャンセルコード送信用）</label>
-<input id="restaurantEmail" type="email" placeholder="example@email.com" oninput="validate()">
+    <input id="restaurantEmail" type="email" placeholder="example@email.com" oninput="validate()">
 
     <div class="checkbox-container">
         <input type="checkbox" id="mealCheck" onchange="validate()" style="width:22px; height:22px; margin-right:12px;">
@@ -87,11 +91,7 @@ function validate() {
     const name = document.getElementById("restaurantName").value.trim();
     const email = document.getElementById("restaurantEmail").value.trim();
     const meal = document.getElementById("mealCheck").checked;
-    
-    // メールアドレスに「@」が含まれているかも条件に加えるとより確実です
     const isEmailValid = email.includes('@');
-
-    // 名前があり、メールが有効で、チェックが入っている場合のみ有効化
     document.getElementById("approve-btn").disabled = !(name && isEmailValid && meal);
 }
 
@@ -130,7 +130,6 @@ async function finalSubmit() {
     document.getElementById("loading").style.display = "block";
 
     try {
-        // 1. Supabase 更新
         const resSupabase = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${SLOT_ID}`, {
             method: "PATCH",
             headers: {
@@ -148,7 +147,6 @@ async function finalSubmit() {
 
         if(!resSupabase.ok) throw new Error("DB更新エラー");
 
-        // 2. Make.com Webhook送信
         await fetch(MAKE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
