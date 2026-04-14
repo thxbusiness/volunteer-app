@@ -10,42 +10,35 @@
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .toggle-btn { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; border: none; background: none; width: 100%; text-decoration: underline; }
-        .error-msg { margin-top: 15px; color: #e74c3c; font-size: 14px; text-align: center; font-weight: bold; }
+        .error-msg { margin-top: 15px; color: #e53e3e; font-size: 0.9em; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="auth-container">
-    <h2 id="title">ログイン</h2>
-    <div id="nickname-area" style="display: none;">
-        <input type="text" id="nickname" placeholder="ニックネーム（例：田中）">
-    </div>
+    <h2 id="auth-title">ログイン</h2>
     <input type="email" id="email" placeholder="メールアドレス">
+    <input type="text" id="nickname" placeholder="ニックネーム" style="display:none;">
+    
     <button id="main-btn">カレンダーを開く</button>
-    <div id="msg" class="error-msg"></div>
     <button id="toggle-btn" class="toggle-btn">新規登録はこちら</button>
+    <div id="msg" class="error-msg"></div>
 </div>
 
 <script>
-    const S_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-    const S_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
-    const supabaseClient = supabase.createClient(S_URL, S_KEY);
-
-    // URLのvidを記憶する
-    const urlParams = new URLSearchParams(window.location.search);
-    let vid = urlParams.get('vid');
-    if (vid) {
-        localStorage.setItem('temp_vid', vid);
-    } else {
-        vid = localStorage.getItem('temp_vid') || "A001"; // デフォルトA001
-    }
+    const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
+    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
     let isSignUp = false;
+    // URLからvidを受け取っている場合は保持（手動設定用）
+    const urlParams = new URLSearchParams(window.location.search);
+    let vid = urlParams.get('vid');
 
     document.getElementById('toggle-btn').addEventListener('click', () => {
         isSignUp = !isSignUp;
-        document.getElementById('nickname-area').style.display = isSignUp ? 'block' : 'none';
-        document.getElementById('title').innerText = isSignUp ? '新規登録' : 'ログイン';
+        document.getElementById('nickname').style.display = isSignUp ? 'block' : 'none';
+        document.getElementById('auth-title').innerText = isSignUp ? '新規登録' : 'ログイン';
         document.getElementById('main-btn').innerText = isSignUp ? '登録して確認メールを送信' : 'カレンダーを開く';
         document.getElementById('toggle-btn').innerText = isSignUp ? 'ログインに戻る' : '新規登録はこちら';
     });
@@ -54,25 +47,41 @@
         const email = document.getElementById('email').value;
         const nickname = document.getElementById('nickname').value;
         const msg = document.getElementById('msg');
+        msg.innerText = "";
 
         if (!email) { msg.innerText = "メールアドレスを入力してください"; return; }
 
         if (isSignUp) {
             if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
+            
+            // vidが未指定なら自動生成（V + 4桁）
+            const newVid = vid || "V" + Math.floor(1000 + Math.random() * 9000);
+
             const { error } = await supabaseClient.auth.signUp({
                 email: email, 
-                password: "password123", 
-                options: { data: { nickname: nickname, volunteer_id: vid } }
+                password: "password123", // パスワードは固定または入力式に変更可能
+                options: { data: { nickname: nickname, volunteer_id: newVid } }
             });
-            if (error) { msg.innerText = error.message; }
-            else { msg.style.color = "green"; msg.innerText = "認証メールを送信しました。"; }
+
+            if (error) { 
+                msg.innerText = "エラー: " + error.message; 
+            } else { 
+                msg.style.color = "green"; 
+                msg.innerText = `登録完了！ID: ${newVid} で登録しました。メールを確認してください。`; 
+            }
         } else {
-            const { error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
-            if (error) { msg.innerText = "エラー: " + error.message; }
-            else {
+            // ログイン処理
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
+            
+            if (error) { 
+                msg.innerText = "エラー: " + error.message; 
+            } else if (data.user) {
+                // メタデータから登録時のvidを取得
+                const userVid = data.user.user_metadata.volunteer_id || vid;
+                msg.style.color = "green";
                 msg.innerText = "ログイン成功！";
                 setTimeout(() => {
-                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(vid)}`;
+                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
                 }, 800);
             }
         }
