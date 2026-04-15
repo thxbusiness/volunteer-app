@@ -10,18 +10,24 @@
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .toggle-btn { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; border: none; background: none; width: 100%; text-decoration: underline; }
-        .error-msg { margin-top: 15px; color: #e53e3e; font-size: 0.9em; text-align: center; }
+        .error-msg { margin-top: 15px; color: red; font-size: 0.9em; text-align: center; min-height: 1.2em; }
     </style>
 </head>
 <body>
 
 <div class="auth-container">
-    <h2 id="auth-title">ログイン</h2>
-    <input type="email" id="email" placeholder="メールアドレス">
-    <input type="text" id="nickname" placeholder="ニックネーム" style="display:none;">
+    <h2 id="auth-title" style="text-align:center; margin-bottom:20px;">ログイン</h2>
     
-    <button id="main-btn">カレンダーを開く</button>
-    <button id="toggle-btn" class="toggle-btn">新規登録はこちら</button>
+    <div id="signup-fields" style="display:none;">
+        <input type="text" id="nickname" placeholder="ニックネーム">
+        <input type="text" id="vid-input" placeholder="ボランティアID (任意)">
+    </div>
+    
+    <input type="email" id="email" placeholder="メールアドレス">
+    
+    <button id="auth-btn" onclick="handleAuth()">ログイン</button>
+    <button class="toggle-btn" id="toggle-btn" onclick="toggleMode()">新規登録はこちら</button>
+    
     <div id="msg" class="error-msg"></div>
 </div>
 
@@ -31,22 +37,22 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
     let isSignUp = false;
-    // URLからvidを受け取っている場合は保持（手動設定用）
-    const urlParams = new URLSearchParams(window.location.search);
-    let vid = urlParams.get('vid');
 
-    document.getElementById('toggle-btn').addEventListener('click', () => {
+    function toggleMode() {
         isSignUp = !isSignUp;
-        document.getElementById('nickname').style.display = isSignUp ? 'block' : 'none';
-        document.getElementById('auth-title').innerText = isSignUp ? '新規登録' : 'ログイン';
-        document.getElementById('main-btn').innerText = isSignUp ? '登録して確認メールを送信' : 'カレンダーを開く';
-        document.getElementById('toggle-btn').innerText = isSignUp ? 'ログインに戻る' : '新規登録はこちら';
-    });
+        document.getElementById("auth-title").innerText = isSignUp ? "新規登録" : "ログイン";
+        document.getElementById("auth-btn").innerText = isSignUp ? "登録する" : "ログイン";
+        document.getElementById("toggle-btn").innerText = isSignUp ? "ログインはこちら" : "新規登録はこちら";
+        document.getElementById("signup-fields").style.display = isSignUp ? "block" : "none";
+        document.getElementById("msg").innerText = "";
+    }
 
-    document.getElementById('main-btn').addEventListener('click', async () => {
-        const email = document.getElementById('email').value;
-        const nickname = document.getElementById('nickname').value;
-        const msg = document.getElementById('msg');
+    async function handleAuth() {
+        const email = document.getElementById("email").value;
+        const nickname = document.getElementById("nickname").value;
+        const vid = document.getElementById("vid-input").value;
+        const msg = document.getElementById("msg");
+        msg.style.color = "red";
         msg.innerText = "";
 
         if (!email) { msg.innerText = "メールアドレスを入力してください"; return; }
@@ -54,20 +60,26 @@
         if (isSignUp) {
             if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
             
-            // vidが未指定なら自動生成（V + 4桁）
             const newVid = vid || "V" + Math.floor(1000 + Math.random() * 9000);
 
-            const { error } = await supabaseClient.auth.signUp({
+            // 登録実行
+            const { data, error } = await supabaseClient.auth.signUp({
                 email: email, 
-                password: "password123", // パスワードは固定または入力式に変更可能
+                password: "password123",
                 options: { data: { nickname: nickname, volunteer_id: newVid } }
             });
 
             if (error) { 
                 msg.innerText = "エラー: " + error.message; 
             } else { 
-                msg.style.color = "green"; 
-                msg.innerText = `登録完了！ID: ${newVid} で登録しました。メールを確認してください。`; 
+                // 重複チェックロジック：identitiesが空なら既に登録済みと判定
+                if (data.user && data.user.identities && data.user.identities.length === 0) {
+                    msg.style.color = "orange";
+                    msg.innerText = "⚠️ このメールアドレスは既に登録されています。ログインをお試しください。";
+                } else {
+                    msg.style.color = "green"; 
+                    msg.innerText = `登録完了！ID: ${newVid} で登録しました。メールを確認してください。`; 
+                }
             }
         } else {
             // ログイン処理
@@ -76,16 +88,16 @@
             if (error) { 
                 msg.innerText = "エラー: " + error.message; 
             } else if (data.user) {
-                // メタデータから登録時のvidを取得
                 const userVid = data.user.user_metadata.volunteer_id || vid;
                 msg.style.color = "green";
                 msg.innerText = "ログイン成功！";
                 setTimeout(() => {
-                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
-                }, 800);
+                    window.location.href = `admin_calendar.html?vid=${userVid}`;
+                }, 1000);
             }
         }
-    });
+    }
 </script>
+
 </body>
 </html>
