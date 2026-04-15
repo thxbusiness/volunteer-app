@@ -26,8 +26,11 @@
 </div>
 
 <script>
+    // 【重要】ここをもう一度ダッシュボードの値と照らし合わせてください
     const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
-    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZES6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+    const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+    
+    // クライアントの初期化
     const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
     let isSignUp = false;
@@ -48,48 +51,55 @@
         const nickname = document.getElementById('nickname').value.trim();
         const msg = document.getElementById('msg');
         msg.style.color = "#e53e3e";
-        msg.innerText = "";
+        msg.innerText = "処理中...";
 
         if (!email) { msg.innerText = "メールアドレスを入力してください"; return; }
 
-        if (isSignUp) {
-            if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
-            const newVid = vid || "V" + Math.floor(1000 + Math.random() * 9000);
+        try {
+            if (isSignUp) {
+                if (!nickname) { msg.innerText = "ニックネームを入力してください"; return; }
+                const newVid = vid || "V" + Math.floor(1000 + Math.random() * 9000);
 
-            // 新規登録を試行
-            const { data, error } = await supabaseClient.auth.signUp({
-                email: email, 
-                password: "password123",
-                options: { data: { nickname: nickname, volunteer_id: newVid } }
-            });
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: email, 
+                    password: "password123",
+                    options: { data: { nickname: nickname, volunteer_id: newVid } }
+                });
 
-            // 【重要】設定によらず重複を判定するロジック
-            // identitiesが空、またはエラーメッセージに「already registered」が含まれる場合
-            const alreadyExists = (data?.user && data?.user?.identities?.length === 0) || 
-                                 (error && error.message.includes("already registered"));
+                // 重複判定
+                const alreadyExists = (data?.user && data?.user?.identities?.length === 0) || 
+                                     (error && error.message.includes("already registered"));
 
-            if (alreadyExists) {
-                msg.style.color = "#dd6b20"; // 警告色（オレンジ）
-                msg.innerText = "⚠️ このアドレスは既に登録されています。\n「ログイン」に切り替えて進んでください。";
-            } else if (error) {
-                msg.innerText = "エラー: " + error.message; 
-            } else { 
-                msg.style.color = "green"; 
-                msg.innerText = `登録完了！ID: ${newVid} で登録しました。\n届いたメール内のリンクをクリックしてください。`; 
+                if (alreadyExists) {
+                    msg.style.color = "#dd6b20";
+                    msg.innerText = "⚠️ このアドレスは既に登録されています。\n「ログイン」に切り替えて進んでください。";
+                } else if (error) {
+                    throw error;
+                } else { 
+                    msg.style.color = "green"; 
+                    msg.innerText = `登録完了！ID: ${newVid}\nメールを確認してください。`; 
+                }
+            } else {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
+                
+                if (error) { 
+                    throw error;
+                } else if (data.user) {
+                    const userVid = data.user.user_metadata.volunteer_id || vid;
+                    msg.style.color = "green";
+                    msg.innerText = "ログイン成功！";
+                    setTimeout(() => {
+                        window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
+                    }, 800);
+                }
             }
-        } else {
-            // ログイン処理
-            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
-            
-            if (error) { 
-                msg.innerText = "エラー: " + error.message; 
-            } else if (data.user) {
-                const userVid = data.user.user_metadata.volunteer_id || vid;
-                msg.style.color = "green";
-                msg.innerText = "ログイン成功！移動します...";
-                setTimeout(() => {
-                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
-                }, 800);
+        } catch (err) {
+            console.error("Supabase Error:", err);
+            // APIキーエラーの場合の表示を分かりやすく
+            if (err.message.includes("API key")) {
+                msg.innerText = "エラー: APIキーが無効です。Supabaseの管理画面で最新のキーを確認してください。";
+            } else {
+                msg.innerText = "エラー: " + err.message;
             }
         }
     }
