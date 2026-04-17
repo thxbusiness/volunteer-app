@@ -10,7 +10,7 @@
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
         button { width: 100%; padding: 12px; background: #3788d8; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         .toggle-btn { text-align: center; margin-top: 20px; font-size: 0.9em; color: #3788d8; cursor: pointer; border: none; background: none; width: 100%; text-decoration: underline; }
-        .error-msg { margin-top: 15px; color: #e53e3e; font-size: 0.9em; text-align: center; min-height: 1.5em; line-height: 1.4; }
+        .error-msg { margin-top: 15px; color: #e53e3e; font-size: 0.9em; text-align: center; min-height: 1.5em; line-height: 1.4; white-space: pre-wrap; }
     </style>
 </head>
 <body>
@@ -26,11 +26,8 @@
 </div>
 
 <script>
-    // 【重要】ここをもう一度ダッシュボードの値と照らし合わせてください
     const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
     const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
-    
-    // クライアントの初期化
     const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
     let isSignUp = false;
@@ -66,7 +63,6 @@
                     options: { data: { nickname: nickname, volunteer_id: newVid } }
                 });
 
-                // 重複判定
                 const alreadyExists = (data?.user && data?.user?.identities?.length === 0) || 
                                      (error && error.message.includes("already registered"));
 
@@ -76,8 +72,11 @@
                 } else if (error) {
                     throw error;
                 } else { 
+                    // --- 修正箇所：ログインに戻るリンクだけを隠す ---
+                    document.getElementById('toggle-btn').style.display = 'none'; 
+                    
                     msg.style.color = "green"; 
-                    msg.innerText = `登録完了！ID: ${newVid}\nメールを確認してください。`; 
+                    msg.innerText = `登録完了！ ID: ${newVid}\nメールを確認してください。`; 
                 }
             } else {
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
@@ -95,12 +94,7 @@
             }
         } catch (err) {
             console.error("Supabase Error:", err);
-            // APIキーエラーの場合の表示を分かりやすく
-            if (err.message.includes("API key")) {
-                msg.innerText = "エラー: APIキーが無効です。Supabaseの管理画面で最新のキーを確認してください。";
-            } else {
-                msg.innerText = "エラー: " + err.message;
-            }
+            msg.innerText = "エラー: " + err.message;
         }
     }
 </script>
