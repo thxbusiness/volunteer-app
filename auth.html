@@ -84,18 +84,13 @@
                 
                 if (error) { 
                     throw error;
-                } else { 
-                    // --- 修正箇所：ボタンとリンクを隠す ---
-                    document.getElementById('main-btn').style.display = 'none';   // 登録ボタンを隠す
-                    document.getElementById('toggle-btn').style.display = 'none'; // ログインへ戻るリンクを隠す
-                    
-                    msg.style.color = "green"; 
-                    msg.style.fontSize = "1.1em";
-                    msg.style.fontWeight = "bold";
-                    msg.innerHTML = `✅ 登録の第一段階が完了しました！<br><br>` +
-                                  `<span style="color:#333;">${email}</span> 宛に<br>` +
-                                  `確認メールを送信しました。<br><br>` +
-                                  `メール内のリンクをクリックして<br>登録を完了させてください。`; 
+                } else if (data.user) {
+                    const userVid = data.user.user_metadata.volunteer_id || vid;
+                    msg.style.color = "green";
+                    msg.innerText = "ログイン成功！";
+                    setTimeout(() => {
+                        window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
+                    }, 800);
                 }
             }
         } catch (err) {
