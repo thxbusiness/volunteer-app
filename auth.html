@@ -34,6 +34,34 @@
     const urlParams = new URLSearchParams(window.location.search);
     let vid = urlParams.get('vid');
 
+    // --- 修正：メールリンクからの戻り時のみ自動遷移させる ---
+    document.addEventListener('DOMContentLoaded', async function() {
+        // URLの末尾に #access_token が含まれているか（メールリンク経由の証拠）
+        const isFromEmail = window.location.hash.includes('access_token');
+        
+        if (isFromEmail) {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            if (session) {
+                const userVid = session.user.user_metadata.volunteer_id;
+                const msg = document.getElementById('msg');
+                
+                // 画面を認証成功モードに切り替え
+                document.getElementById('email').style.display = 'none';
+                document.getElementById('main-btn').style.display = 'none';
+                document.getElementById('toggle-btn').style.display = 'none';
+                document.getElementById('auth-title').innerText = "認証成功";
+
+                msg.style.color = "green";
+                msg.innerText = "認証されました。カレンダーへ移動します...";
+                
+                setTimeout(() => {
+                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
+                }, 1000);
+            }
+        }
+    });
+
     function toggleMode() {
         isSignUp = !isSignUp;
         document.getElementById('nickname').style.display = isSignUp ? 'block' : 'none';
@@ -72,7 +100,7 @@
                 } else if (error) {
                     throw error;
                 } else { 
-                    // 【修正箇所】登録成功時にボタンとリンクの両方を隠す
+                    // 登録成功時にボタンとリンクを隠す
                     document.getElementById('main-btn').style.display = 'none';
                     document.getElementById('toggle-btn').style.display = 'none'; 
                     
