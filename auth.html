@@ -72,8 +72,10 @@
                 } else if (error) {
                     throw error;
                 } else { 
-                    // 登録成功時に「ログインに戻る」のみ非表示にする
+                    // 【修正箇所】登録成功時にボタンとリンクの両方を隠す
+                    document.getElementById('main-btn').style.display = 'none';
                     document.getElementById('toggle-btn').style.display = 'none'; 
+                    
                     msg.style.color = "green"; 
                     msg.innerText = `登録完了！ID: ${newVid}\nメールを確認してください。`; 
                 }
