@@ -34,6 +34,30 @@
     const urlParams = new URLSearchParams(window.location.search);
     let vid = urlParams.get('vid');
 
+    // --- 追加：メールリンクから戻ってきた際の自動ログイン処理 ---
+    document.addEventListener('DOMContentLoaded', async function() {
+        // セッション（ログイン状態）があるか確認
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        if (session) {
+            const userVid = session.user.user_metadata.volunteer_id;
+            const msg = document.getElementById('msg');
+            
+            // 入力フォームとボタンを隠してメッセージを表示
+            document.getElementById('email').style.display = 'none';
+            document.getElementById('main-btn').style.display = 'none';
+            document.getElementById('toggle-btn').style.display = 'none';
+            document.getElementById('auth-title').innerText = "認証成功";
+
+            msg.style.color = "green";
+            msg.innerText = "認証されました。カレンダーへ移動します...";
+            
+            setTimeout(() => {
+                window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
+            }, 1000);
+        }
+    });
+
     function toggleMode() {
         isSignUp = !isSignUp;
         document.getElementById('nickname').style.display = isSignUp ? 'block' : 'none';
@@ -72,7 +96,7 @@
                 } else if (error) {
                     throw error;
                 } else { 
-                    // 【修正箇所】登録成功時にボタンとリンクの両方を隠す
+                    // 登録成功時にボタンとリンクの両方を隠す
                     document.getElementById('main-btn').style.display = 'none';
                     document.getElementById('toggle-btn').style.display = 'none'; 
                     
