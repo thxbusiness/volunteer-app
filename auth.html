@@ -17,11 +17,12 @@
 
 <div class="auth-container">
     <h2 id="auth-title" style="text-align:center;">ログイン</h2>
-    <input type="email" id="email" placeholder="メールアドレス example@email.com">
-    <input type="text" id="nickname" placeholder="名前 ニックネーム" style="display:none;">
-    
-    <button id="main-btn" onclick="handleAuth()">カレンダーを開く</button>
-    <button id="toggle-btn" class="toggle-btn" onclick="toggleMode()">新規登録はこちら</button>
+    <div id="auth-form">
+        <input type="email" id="email" placeholder="メールアドレス example@email.com">
+        <input type="text" id="nickname" placeholder="名前 ニックネーム" style="display:none;">
+        <button id="main-btn" onclick="handleAuth()">カレンダーを開く</button>
+        <button id="toggle-btn" class="toggle-btn" onclick="toggleMode()">新規登録はこちら</button>
+    </div>
     <div id="msg" class="error-msg"></div>
 </div>
 
@@ -34,31 +35,29 @@
     const urlParams = new URLSearchParams(window.location.search);
     let vid = urlParams.get('vid');
 
-    // --- 修正：メールリンクからの戻り時のみ自動遷移させる ---
-    document.addEventListener('DOMContentLoaded', async function() {
-        // URLの末尾に #access_token が含まれているか（メールリンク経由の証拠）
-        const isFromEmail = window.location.hash.includes('access_token');
-        
-        if (isFromEmail) {
-            const { data: { session } } = await supabaseClient.auth.getSession();
+    // --- 【強化版】ログイン状態の監視 ---
+    // これにより、メールリンクからのアクセスを逃さずキャッチします
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+            const userVid = session.user.user_metadata.volunteer_id || vid;
+            const msg = document.getElementById('msg');
             
-            if (session) {
-                const userVid = session.user.user_metadata.volunteer_id;
-                const msg = document.getElementById('msg');
-                
-                // 画面を認証成功モードに切り替え
-                document.getElementById('email').style.display = 'none';
-                document.getElementById('main-btn').style.display = 'none';
-                document.getElementById('toggle-btn').style.display = 'none';
-                document.getElementById('auth-title').innerText = "認証成功";
+            // フォームを消してメッセージを表示
+            document.getElementById('auth-form').style.display = 'none';
+            document.getElementById('auth-title').innerText = "認証成功";
+            msg.style.color = "green";
+            msg.innerText = "認証されました。カレンダーへ移動します...";
+            
+            setTimeout(() => {
+                window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
+            }, 1000);
+        }
+    });
 
-                msg.style.color = "green";
-                msg.innerText = "認証されました。カレンダーへ移動します...";
-                
-                setTimeout(() => {
-                    window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
-                }, 1000);
-            }
+    // URLにエラーがある場合の表示
+    window.addEventListener('load', () => {
+        if (window.location.hash.includes('error=')) {
+            document.getElementById('msg').innerText = "⚠️ リンクの期限が切れたか、無効です。\n再度やり直してください。";
         }
     });
 
@@ -88,38 +87,26 @@
                 const { data, error } = await supabaseClient.auth.signUp({
                     email: email, 
                     password: "password123",
-                    options: { data: { nickname: nickname, volunteer_id: newVid } }
+                    options: { 
+                        data: { nickname: nickname, volunteer_id: newVid },
+                        emailRedirectTo: window.location.href // 今開いているこのページに戻る
+                    }
                 });
 
-                const alreadyExists = (data?.user && data?.user?.identities?.length === 0) || 
-                                     (error && error.message.includes("already registered"));
+                if (error) throw error;
 
-                if (alreadyExists) {
+                if (data?.user?.identities?.length === 0) {
                     msg.style.color = "#dd6b20";
-                    msg.innerText = "⚠️ このアドレスは既に登録されています。\n別のアドレスを入力してください。";
-                } else if (error) {
-                    throw error;
+                    msg.innerText = "⚠️ このアドレスは既に登録されています。\nログインするか別のアドレスでお試しください。";
                 } else { 
-                    // 登録成功時にボタンとリンクを隠す
-                    document.getElementById('main-btn').style.display = 'none';
-                    document.getElementById('toggle-btn').style.display = 'none'; 
-                    
+                    document.getElementById('auth-form').style.display = 'none';
                     msg.style.color = "green"; 
-                    msg.innerText = `登録完了！ID: ${newVid}\nメールを確認してください。`; 
+                    msg.innerText = `確認メールを送信しました！\nメール内のリンクをクリックしてください。`; 
                 }
             } else {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
-                
-                if (error) { 
-                    throw error;
-                } else if (data.user) {
-                    const userVid = data.user.user_metadata.volunteer_id || vid;
-                    msg.style.color = "green";
-                    msg.innerText = "ログイン成功！";
-                    setTimeout(() => {
-                        window.location.href = `calendar_volunteer.html?vid=${encodeURIComponent(userVid)}`;
-                    }, 800);
-                }
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
+                if (error) throw error;
+                // ログイン成功時は onAuthStateChange が検知してリダイレクトします
             }
         } catch (err) {
             msg.innerText = "エラー: " + err.message;
