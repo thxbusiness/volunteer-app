@@ -72,11 +72,10 @@
                 } else if (error) {
                     throw error;
                 } else { 
-                    // --- 修正箇所：ログインに戻るリンクだけを隠す ---
+                    // 登録成功時に「ログインに戻る」のみ非表示にする
                     document.getElementById('toggle-btn').style.display = 'none'; 
-                    
                     msg.style.color = "green"; 
-                    msg.innerText = `登録完了！ ID: ${newVid}\nメールを確認してください。`; 
+                    msg.innerText = `登録完了！ID: ${newVid}\nメールを確認してください。`; 
                 }
             } else {
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: "password123" });
@@ -93,7 +92,6 @@
                 }
             }
         } catch (err) {
-            console.error("Supabase Error:", err);
             msg.innerText = "エラー: " + err.message;
         }
     }
