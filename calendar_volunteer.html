@@ -62,7 +62,6 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 let selectedEvent = null;
-
 const ADMIN_EMAIL = "thxbusiness@gmail.com";
 
 document.getElementById('admin-link').href = `admin.html?vid=${VOLUNTEER_ID}`;
@@ -91,7 +90,7 @@ function toggleQR() {
     }
 }
 
-// --- 【追加】面付けPDF生成機能 ---
+// --- 【修正版】文字化け回避PDF生成ロジック ---
 async function downloadQRPDF() {
     const qrCanvas = document.querySelector('#qrcode canvas');
     if (!qrCanvas) {
@@ -101,33 +100,44 @@ async function downloadQRPDF() {
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
-    const qrDataUrl = qrCanvas.toDataURL('image/png');
 
-    const marginX = 10;      // 左右余白
-    const marginY = 15;      // 上下余白
-    const qrSize = 40;       // QRのサイズ
-    const gapX = 8;          // 横の間隔
-    const gapY = 12;         // 縦の間隔
-    const rows = 5;          // 行数（5行）
-    const cols = 4;          // 列数（4列）
-
-    doc.setFont("helvetica", "bold");
+    // 1. 文字化け回避：一時的なキャンバスで「文字入りの1枚の画像」を作成
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = 400;
+    tempCanvas.height = 500;
     
+    tempCtx.fillStyle = '#ffffff';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // 日本語を描画
+    tempCtx.fillStyle = '#000000';
+    tempCtx.font = 'bold 32px sans-serif';
+    tempCtx.textAlign = 'center';
+    tempCtx.fillText('予約カレンダーのQRコード', tempCanvas.width / 2, 45);
+    
+    // QRコードを中央に転写
+    tempCtx.drawImage(qrCanvas, (tempCanvas.width - 320) / 2, 70, 320, 320);
+    
+    tempCtx.font = '24px sans-serif';
+    tempCtx.fillText('スマホでスキャンしてください', tempCanvas.width / 2, 440);
+    
+    // 画像データとして抽出
+    const finalUnitImg = tempCanvas.toDataURL('image/png');
+
+    // 2. PDF上に面付け配置
+    const marginX = 10;
+    const marginY = 10;
+    const unitW = 45; // 1ユニットの横幅(mm)
+    const unitH = 55; // 1ユニットの縦幅(mm)
+    const rows = 5;
+    const cols = 4;
+
     for (let i = 0; i < rows; i++) {
         for (let j = 0; j < cols; j++) {
-            const x = marginX + j * (qrSize + gapX);
-            const y = marginY + i * (qrSize + gapY + 5);
-
-            // ヘッダーテキスト
-            doc.setFontSize(8);
-            doc.text('予約カレンダーのQRコード', x + (qrSize / 2), y, { align: 'center' });
-            
-            // QRコード
-            doc.addImage(qrDataUrl, 'PNG', x, y + 2, qrSize, qrSize);
-            
-            // フッターテキスト
-            doc.setFontSize(6);
-            doc.text('スマホでスキャンしてください', x + (qrSize / 2), y + qrSize + 5, { align: 'center' });
+            const x = marginX + j * unitW;
+            const y = marginY + i * unitH;
+            doc.addImage(finalUnitImg, 'PNG', x, y, unitW - 2, unitH - 2);
         }
     }
 
