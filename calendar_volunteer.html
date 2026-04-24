@@ -5,7 +5,6 @@
     <title>対応可能時間登録</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
@@ -39,8 +38,7 @@
     <strong>予約カレンダーのQRコード</strong>
     <div id="qrcode"></div>
     <p style="font-size: 12px; color: #666; margin-top: 10px;">スマホでスキャンしてください</p>
-    
-    <button onclick="downloadQRPDF()" class="btn" style="background: #333; margin-top: 15px; width: 100%; font-size: 14px; height: 40px;">A4印刷用PDFを保存</button>
+    <button onclick="downloadQRImage()" class="btn" style="background: #333; margin-top: 15px; width: 100%; font-size: 14px; height: 40px;">画像を保存する</button>
 </div>
 
 <div id="calendar"></div>
@@ -64,8 +62,8 @@ let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 let selectedEvent = null;
 
-// 管理者メールアドレス
-const ADMIN_EMAIL = "your-email@example.com";
+// 管理者のメールアドレス（こちらを書き換えてください）
+const ADMIN_EMAIL = "thxbusiness@gmail.com";
 
 document.getElementById('admin-link').href = `admin.html?vid=${VOLUNTEER_ID}`;
 
@@ -93,43 +91,22 @@ function toggleQR() {
     }
 }
 
-// --- PDF生成・ダウンロード関数 ---
-async function downloadQRPDF() {
+function downloadQRImage() {
     const qrCanvas = document.querySelector('#qrcode canvas');
-    if (!qrCanvas) {
-        alert("QRコードが生成されていません。一度表示させてください。");
-        return;
-    }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4'); // A4サイズ縦向き
-    const qrDataUrl = qrCanvas.toDataURL('image/png');
-
-    const margin = 10;       // 上下左右の余白(mm)
-    const qrSize = 40;       // QR一つのサイズ(mm)
-    const padding = 10;      // QR同士の間隔(mm)
-    const rows = 4;          // 行数
-    const cols = 4;          // 列数
-
-    doc.setFontSize(10);
-
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            const x = margin + j * (qrSize + padding);
-            const y = margin + i * (qrSize + padding + 10); // テキスト分少し多めに空ける
-
-            // QRコードの配置
-            doc.addImage(qrDataUrl, 'PNG', x, y + 5, qrSize, qrSize);
-            
-            // テキストの配置
-            doc.text('予約カレンダー', x + (qrSize / 2), y + 3, { align: 'center' });
-            doc.setFontSize(7);
-            doc.text('スマホでスキャンしてください', x + (qrSize / 2), y + qrSize + 9, { align: 'center' });
-            doc.setFontSize(10);
-        }
-    }
-
-    doc.save(`QR_Sheet_${VOLUNTEER_ID}.pdf`);
+    if (!qrCanvas) return;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 350; canvas.height = 450;
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#000000'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('予約カレンダーのQRコード', canvas.width / 2, 50);
+    ctx.drawImage(qrCanvas, (canvas.width - 250) / 2, 80, 250, 250);
+    ctx.fillStyle = '#666666'; ctx.font = '18px sans-serif';
+    ctx.fillText('スマホでスキャンしてください', canvas.width / 2, 380);
+    const link = document.createElement('a');
+    link.download = `QR_Code_${VOLUNTEER_ID}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
 }
 
 function initCalendar() {
@@ -164,6 +141,8 @@ function initCalendar() {
 async function loadEvents() {
     const { data: { user } } = await supabaseClient.auth.getUser();
     let url = `${SUPABASE_URL}/rest/v1/availability`;
+    
+    // 管理者でない場合は、自分のIDのデータのみ取得
     if (user && user.email !== ADMIN_EMAIL) {
         url += `?volunteer_id=eq.${VOLUNTEER_ID}`;
     }
