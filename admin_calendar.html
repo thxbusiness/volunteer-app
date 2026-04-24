@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>予約管理（管理者用）</title>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --primary-color: #3788d8;
@@ -21,37 +22,18 @@
             max-width: 100%; margin: 0 auto; background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
         h1 { text-align: center; font-size: 1.1rem; margin: 5px 0 15px; color: #1a1a1a; }
-
-        .fc { 
-            font-size: 10px !important; 
-            height: 80vh !important; 
-        }
+        .fc { font-size: 10px !important; height: 80vh !important; }
         .fc-timegrid-slot { height: 22.5px !important; }
-        .fc-event-title { 
-            font-size: 11px !important; 
-            font-weight: bold !important;
-            padding: 1px 2px !important;
-            line-height: 1.2;
-        }
+        .fc-event-title { font-size: 11px !important; font-weight: bold !important; padding: 1px 2px !important; line-height: 1.2; }
         .fc-toolbar-title { font-size: 13px !important; }
         .fc-day-past, .fc-timegrid-slot-past { background-color: #f5f5f5 !important; }
         .fc-v-event { border-radius: 4px; border: none !important; }
-
-        /* モーダル共通設定 */
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center;
-        }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
         .modal-content { background: white; padding: 25px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; }
         .modal-title { font-size: 18px; font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 15px; }
         .modal-text { font-size: 14px; margin-bottom: 20px; display: block; color: #666; }
-        
-        .cancel-input {
-            width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px; margin-bottom: 20px;
-            box-sizing: border-box; font-size: 16px; text-align: center; outline: none;
-        }
+        .cancel-input { width: 100%; padding: 12px; border: 2px solid #eee; border-radius: 8px; margin-bottom: 20px; box-sizing: border-box; font-size: 16px; text-align: center; outline: none; }
         .cancel-input:focus { border-color: var(--primary-color); }
-
         .modal-buttons { display: flex; gap: 10px; justify-content: center; }
         .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; flex: 1; }
         .btn-confirm { background: var(--primary-color); color: white; }
@@ -113,12 +95,20 @@
 <script>
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
 
 const urlParams = new URLSearchParams(window.location.search);
 const VOLUNTEER_ID = urlParams.get("vid") || "A001";
 let calendar;
+let currentUserEmail = ""; // ボランティアのメールアドレスを保持
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // ログイン中のボランティアのメールアドレスを取得
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) {
+        currentUserEmail = user.email;
+    }
+
     initCalendar();
     loadEvents();
 });
@@ -134,7 +124,11 @@ function openReserveModal(dateStr, timeStr, event) {
     document.getElementById('reserve-modal').style.display = 'flex';
     document.getElementById('reserve-confirm-btn').onclick = function() {
         const params = new URLSearchParams({
-            vid: VOLUNTEER_ID, start: event.startStr, end: event.endStr, slot_id: event.id
+            vid: VOLUNTEER_ID, 
+            start: event.startStr, 
+            end: event.endStr, 
+            slot_id: event.id,
+            v_email: currentUserEmail // メールアドレスをパラメータに追加
         });
         window.location.href = `scan_select_mobile.html?${params.toString()}`;
     };
@@ -149,7 +143,6 @@ function openCancelModal(event) {
     document.getElementById('cancel-confirm-btn').onclick = function() {
         const code = input.value.trim();
         if (!code) return;
-        
         if (String(code) === String(event.extendedProps.cancel_code).trim()) {
             closeModal('cancel-modal');
             openFinalConfirmModal(event);
@@ -203,7 +196,6 @@ function initCalendar() {
                 showMessage("制限", "過去の時間は予約できません。");
                 return; 
             }
-            
             const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
             const timeStr = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
             openReserveModal(dateStr, timeStr, event);
