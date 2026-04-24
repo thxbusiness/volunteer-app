@@ -6,6 +6,7 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -38,7 +39,7 @@
     <strong>予約カレンダーのQRコード</strong>
     <div id="qrcode"></div>
     <p style="font-size: 12px; color: #666; margin-top: 10px;">スマホでスキャンしてください</p>
-    <button onclick="downloadQRImage()" class="btn" style="background: #333; margin-top: 15px; width: 100%; font-size: 14px; height: 40px;">画像を保存する</button>
+    <button onclick="downloadQRPDF()" class="btn" style="background: #333; margin-top: 15px; width: 100%; font-size: 14px; height: 40px;">A4印刷用PDFを保存</button>
 </div>
 
 <div id="calendar"></div>
@@ -62,7 +63,6 @@ let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 let selectedEvent = null;
 
-// 管理者のメールアドレス（こちらを書き換えてください）
 const ADMIN_EMAIL = "thxbusiness@gmail.com";
 
 document.getElementById('admin-link').href = `admin.html?vid=${VOLUNTEER_ID}`;
@@ -91,22 +91,47 @@ function toggleQR() {
     }
 }
 
-function downloadQRImage() {
+// --- 【追加】面付けPDF生成機能 ---
+async function downloadQRPDF() {
     const qrCanvas = document.querySelector('#qrcode canvas');
-    if (!qrCanvas) return;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 350; canvas.height = 450;
-    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#000000'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText('予約カレンダーのQRコード', canvas.width / 2, 50);
-    ctx.drawImage(qrCanvas, (canvas.width - 250) / 2, 80, 250, 250);
-    ctx.fillStyle = '#666666'; ctx.font = '18px sans-serif';
-    ctx.fillText('スマホでスキャンしてください', canvas.width / 2, 380);
-    const link = document.createElement('a');
-    link.download = `QR_Code_${VOLUNTEER_ID}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    if (!qrCanvas) {
+        alert("QRコードを表示してから実行してください。");
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const qrDataUrl = qrCanvas.toDataURL('image/png');
+
+    const marginX = 10;      // 左右余白
+    const marginY = 15;      // 上下余白
+    const qrSize = 40;       // QRのサイズ
+    const gapX = 8;          // 横の間隔
+    const gapY = 12;         // 縦の間隔
+    const rows = 5;          // 行数（5行）
+    const cols = 4;          // 列数（4列）
+
+    doc.setFont("helvetica", "bold");
+    
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            const x = marginX + j * (qrSize + gapX);
+            const y = marginY + i * (qrSize + gapY + 5);
+
+            // ヘッダーテキスト
+            doc.setFontSize(8);
+            doc.text('予約カレンダーのQRコード', x + (qrSize / 2), y, { align: 'center' });
+            
+            // QRコード
+            doc.addImage(qrDataUrl, 'PNG', x, y + 2, qrSize, qrSize);
+            
+            // フッターテキスト
+            doc.setFontSize(6);
+            doc.text('スマホでスキャンしてください', x + (qrSize / 2), y + qrSize + 5, { align: 'center' });
+        }
+    }
+
+    doc.save(`QR_Sheet_${VOLUNTEER_ID}.pdf`);
 }
 
 function initCalendar() {
@@ -141,12 +166,9 @@ function initCalendar() {
 async function loadEvents() {
     const { data: { user } } = await supabaseClient.auth.getUser();
     let url = `${SUPABASE_URL}/rest/v1/availability`;
-    
-    // 管理者でない場合は、自分のIDのデータのみ取得
     if (user && user.email !== ADMIN_EMAIL) {
         url += `?volunteer_id=eq.${VOLUNTEER_ID}`;
     }
-
     const res = await fetch(url, { headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
     const data = await res.json();
     calendar.removeAllEvents();
