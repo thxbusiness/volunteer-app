@@ -11,12 +11,7 @@
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
-        .btn { 
-            display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; height: 48px;
-            cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 16px;
-            background: #3788d8; color: white; text-decoration: none; box-sizing: border-box; font-family: inherit;
-        }
-        h1 { text-align: center; color: #333; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; height: 48px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; background: #3788d8; color: white; text-decoration: none; box-sizing: border-box; font-family: inherit; }
         #qr-container { display: none; text-align: center; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 300px; }
         #qrcode { display: flex; justify-content: center; margin-top: 10px; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
@@ -27,27 +22,21 @@
     </style>
 </head>
 <body>
-
 <h1>ボランティア対応可能時間</h1>
-
 <div class="admin-controls">
     <button onclick="toggleQR()" class="btn" style="background: #28a745;">予約カレンダー用QRを表示</button>
     <a href="admin.html" id="admin-link" class="btn">契約済み一覧ページへ</a>
 </div>
-
 <div id="qr-container">
     <strong>予約カレンダーのQRコード</strong>
     <div id="qrcode"></div>
     <p style="font-size: 12px; color: #666; margin-top: 10px;">スマホでスキャンしてください</p>
     <button onclick="downloadQRPDF()" class="btn" style="background: #333; margin-top: 15px; width: 100%; font-size: 14px; height: 40px;">A4印刷用PDFを保存</button>
 </div>
-
 <div id="calendar"></div>
-
 <div id="delete-modal" class="modal-overlay">
     <div class="modal-content">
         <h2 style="margin:0; font-size:1.3rem; color: #333;">予定の削除</h2>
-        <p style="color:#666; font-size:0.9rem; margin: 10px 0 5px;">この予定を削除しますか？</p>
         <div id="delete-event-info" class="event-details"></div>
         <button id="confirm-delete-btn" class="btn btn-danger" style="width: 100%; margin-bottom: 10px;">削除する</button>
         <button onclick="closeDeleteModal()" class="btn btn-secondary" style="width: 100%;">戻る</button>
@@ -58,114 +47,71 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
-
+const ADMIN_EMAIL = "your-admin-email@example.com";
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 let selectedEvent = null;
-const ADMIN_EMAIL = "thxbusiness@gmail.com";
 
-document.getElementById('admin-link').href = `admin.html?vid=${VOLUNTEER_ID}`;
-
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) { window.location.href = "auth.html"; return; }
     initCalendar();
     loadEvents();
 });
 
-function toLocalISO(dateStr) {
-    const date = new Date(dateStr);
-    const offset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, -1);
-}
-
-function toggleQR() {
+async function toggleQR() {
     const container = document.getElementById('qr-container');
     const qrDiv = document.getElementById('qrcode');
     if (container.style.display === 'block') {
         container.style.display = 'none';
     } else {
         qrDiv.innerHTML = "";
-        const adminUrl = window.location.origin + "/admin_calendar.html?vid=" + VOLUNTEER_ID;
+        // 【修正】ログイン中のユーザーのメールアドレスを取得してQRに載せる
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const v_email = user ? user.email : "";
+        const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(v_email)}`;
+        
         new QRCode(qrDiv, { text: adminUrl, width: 250, height: 250, correctLevel: QRCode.CorrectLevel.H });
         container.style.display = 'block';
     }
 }
 
-// --- 【修正版】文字化け回避PDF生成ロジック ---
 async function downloadQRPDF() {
     const qrCanvas = document.querySelector('#qrcode canvas');
-    if (!qrCanvas) {
-        alert("QRコードを表示してから実行してください。");
-        return;
-    }
-
+    if (!qrCanvas) return;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
-
-    // 1. 文字化け回避：一時的なキャンバスで「文字入りの1枚の画像」を作成
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = 400;
-    tempCanvas.height = 500;
-    
-    tempCtx.fillStyle = '#ffffff';
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-    
-    // 日本語を描画
-    tempCtx.fillStyle = '#000000';
-    tempCtx.font = 'bold 32px sans-serif';
-    tempCtx.textAlign = 'center';
+    tempCanvas.width = 400; tempCanvas.height = 500;
+    tempCtx.fillStyle = '#ffffff'; tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.fillStyle = '#000000'; tempCtx.font = 'bold 32px sans-serif'; tempCtx.textAlign = 'center';
     tempCtx.fillText('予約カレンダーのQRコード', tempCanvas.width / 2, 45);
-    
-    // QRコードを中央に転写
     tempCtx.drawImage(qrCanvas, (tempCanvas.width - 320) / 2, 70, 320, 320);
-    
-    tempCtx.font = '24px sans-serif';
-    tempCtx.fillText('スマホでスキャンしてください', tempCanvas.width / 2, 440);
-    
-    // 画像データとして抽出
     const finalUnitImg = tempCanvas.toDataURL('image/png');
-
-    // 2. PDF上に面付け配置
-    const marginX = 10;
-    const marginY = 10;
-    const unitW = 45; // 1ユニットの横幅(mm)
-    const unitH = 55; // 1ユニットの縦幅(mm)
-    const rows = 5;
-    const cols = 4;
-
-    for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-            const x = marginX + j * unitW;
-            const y = marginY + i * unitH;
-            doc.addImage(finalUnitImg, 'PNG', x, y, unitW - 2, unitH - 2);
+    for (let i = 0; i < 5; i++) {
+        for (let j = 0; j < 4; j++) {
+            doc.addImage(finalUnitImg, 'PNG', 10 + j * 45, 10 + i * 55, 43, 53);
         }
     }
-
     doc.save(`QR_Sheet_${VOLUNTEER_ID}.pdf`);
 }
 
 function initCalendar() {
-    const calendarEl = document.getElementById('calendar');
-    calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        locale: 'ja',
-        selectable: true,
-        editable: true,
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+    calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+        initialView: 'timeGridWeek', locale: 'ja', selectable: true,
         select: async function(info) {
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+            await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
                 headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ volunteer_id: VOLUNTEER_ID, start_time: toLocalISO(info.startStr), end_time: toLocalISO(info.endStr), booked: false })
+                body: JSON.stringify({ volunteer_id: VOLUNTEER_ID, start_time: info.startStr.split('+')[0], end_time: info.endStr.split('+')[0], booked: false })
             });
-            if (res.ok) loadEvents();
-            calendar.unselect();
+            loadEvents();
         },
         eventClick: function(info) {
             selectedEvent = info.event;
-            const start = selectedEvent.start; const end = selectedEvent.end;
-            const dateStr = start.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', weekday: 'short' });
-            const timeStr = `${start.getHours()}:${String(start.getMinutes()).padStart(2, '0')} 〜 ${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`;
+            const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(selectedEvent.start);
+            const timeStr = `${selectedEvent.start.getHours().toString().padStart(2, '0')}:${selectedEvent.start.getMinutes().toString().padStart(2, '0')}`;
             document.getElementById('delete-event-info').innerText = `${dateStr} ${timeStr}`;
             document.getElementById('delete-modal').style.display = 'flex';
         }
@@ -176,32 +122,20 @@ function initCalendar() {
 async function loadEvents() {
     const { data: { user } } = await supabaseClient.auth.getUser();
     let url = `${SUPABASE_URL}/rest/v1/availability`;
-    if (user && user.email !== ADMIN_EMAIL) {
-        url += `?volunteer_id=eq.${VOLUNTEER_ID}`;
-    }
+    if (user && user.email !== ADMIN_EMAIL) { url += `?volunteer_id=eq.${VOLUNTEER_ID}`; }
     const res = await fetch(url, { headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
     const data = await res.json();
     calendar.removeAllEvents();
     data.forEach(item => {
-        calendar.addEvent({
-            id: item.id,
-            start: item.start_time.split('+')[0],
-            end: item.end_time.split('+')[0],
-            title: item.booked ? "予約済み" : "対応可能",
-            backgroundColor: item.booked ? "#999" : "#3788d8"
-        });
+        calendar.addEvent({ id: item.id, start: item.start_time.split('+')[0], end: item.end_time.split('+')[0], title: item.booked ? "予約済み" : "対応可能", backgroundColor: item.booked ? "#999" : "#3788d8" });
     });
 }
-
 function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; selectedEvent = null; }
-
-document.getElementById('confirm-delete-btn').addEventListener('click', async function() {
+document.getElementById('confirm-delete-btn').onclick = async function() {
     if (!selectedEvent) return;
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedEvent.id}`, {
-        method: "DELETE", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-    });
-    if (res.ok) { selectedEvent.remove(); closeDeleteModal(); }
-});
+    await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedEvent.id}`, { method: "DELETE", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
+    selectedEvent.remove(); closeDeleteModal();
+};
 </script>
 </body>
 </html>

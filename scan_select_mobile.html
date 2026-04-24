@@ -7,75 +7,43 @@
     <style>
         body { font-family: sans-serif; margin: 0; padding: 20px; background: #f4f7f6; color: #333; }
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
-        h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .label { font-weight: bold; font-size: 0.9rem; display: block; margin-top: 15px; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        .checkbox-container { margin: 20px 0; display: flex; align-items: center; background: #fff9db; padding: 15px; border-radius: 8px; border: 1px solid #fab005; }
-        #approve-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
-        #approve-btn:disabled { background: #ccc; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        #approve-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 20px; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
         .modal-content { background: white; width: 85%; max-width: 350px; padding: 25px; border-radius: 20px; text-align: center; }
-        .passcode-display { font-size: 3rem; font-weight: bold; color: #e67e22; letter-spacing: 5px; margin: 20px 0; background: #fff5e6; padding: 10px; border-radius: 10px; border: 2px dashed #e67e22; }
-        .btn-final { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; margin-top: 10px; font-weight: bold; }
-        .btn-send { background: #007bff; color: white; }
-        .btn-back { background: #eee; color: #666; }
     </style>
 </head>
 <body>
-
 <div class="card">
-    <h3>承認フォーム</h3>
-    <label class="label">店舗名</label>
-    <input id="restaurantName" type="text" oninput="validate()">
-    <label class="label">通知先メールアドレス</label>
-    <input id="restaurantEmail" type="email" oninput="validate()">
-    <div class="checkbox-container">
-        <input type="checkbox" id="mealCheck" onchange="validate()" style="width:22px; height:22px; margin-right:12px;">
-        <label for="mealCheck">まかない提供を約束する</label>
-    </div>
-    <button id="approve-btn" disabled onclick="showConfirm()">承認・パスコード発行へ</button>
+    <h3>店舗承認フォーム</h3>
+    <input id="restaurantName" type="text" placeholder="店舗名">
+    <input id="restaurantEmail" type="email" placeholder="メールアドレス">
+    <button id="approve-btn" onclick="showConfirm()">承認・パスコード発行</button>
 </div>
 
 <div id="confirm-modal" class="modal-overlay">
     <div class="modal-content">
-        <h2>最終確認</h2>
-        <div id="passcode-val" class="passcode-display">0000</div>
-        <button id="final-submit-btn" class="btn-final btn-send" onclick="finalSubmit()">送信（メールを飛ばす）</button>
-        <button class="btn-final btn-back" onclick="closeModal('confirm-modal')">修正する</button>
+        <h2>キャンセルコード</h2>
+        <div id="passcode-val" style="font-size: 2rem; font-weight: bold; margin: 20px 0;">0000</div>
+        <button onclick="finalSubmit()" style="width:100%; padding:15px; background:#007bff; color:white; border:none; border-radius:10px;">送信</button>
     </div>
-</div>
-
-<div id="result-modal" class="modal-overlay">
-    <div class="modal-content"><h2 id="result-title"></h2><p id="result-text"></p><button class="btn-final btn-send" onclick="handleResultClose()">OK</button></div>
 </div>
 
 <script>
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 const MAKE_URL = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z";
-
 const params = new URLSearchParams(location.search);
 const SLOT_ID = params.get("slot_id");
 const VOLUNTEER_ID = params.get("vid");
-const VOLUNTEER_EMAIL = params.get("v_email"); // ここに値が入る
-
+const VOLUNTEER_EMAIL = params.get("v_email"); // 【修正】引き継いだメアドを保持
 let generatedPasscode = "";
-let isSuccess = false;
-
-function validate() {
-    const name = document.getElementById("restaurantName").value.trim();
-    const email = document.getElementById("restaurantEmail").value.trim();
-    const meal = document.getElementById("mealCheck").checked;
-    document.getElementById("approve-btn").disabled = !(name && email.includes('@') && meal);
-}
 
 function showConfirm() {
     generatedPasscode = Math.floor(1000 + Math.random() * 9000).toString();
     document.getElementById("passcode-val").innerText = generatedPasscode;
     document.getElementById("confirm-modal").style.display = "flex";
 }
-
-function closeModal(id) { document.getElementById(id).style.display = "none"; }
 
 async function finalSubmit() {
     const name = document.getElementById("restaurantName").value;
@@ -97,19 +65,14 @@ async function finalSubmit() {
                 restaurant_email: email,
                 cancel_code: generatedPasscode,
                 volunteer_id: VOLUNTEER_ID,
-                volunteer_email: VOLUNTEER_EMAIL 
+                volunteer_email: VOLUNTEER_EMAIL // 【修正】これでMake.comに届きます
             })
         });
 
-        closeModal('confirm-modal');
-        isSuccess = true;
-        document.getElementById("result-title").innerText = "完了";
-        document.getElementById("result-text").innerText = "メールを送信しました。";
-        document.getElementById("result-modal").style.display = "flex";
+        alert("完了しました");
+        window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(VOLUNTEER_EMAIL)}`;
     } catch (e) { alert("エラーが発生しました。"); }
 }
-
-function handleResultClose() { window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}`; }
 </script>
 </body>
 </html>
