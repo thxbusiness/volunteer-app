@@ -15,13 +15,10 @@
         #approve-btn:disabled { background: #ccc; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
         .modal-content { background: white; width: 90%; max-width: 400px; padding: 25px; border-radius: 20px; text-align: center; }
-        
-        /* モーダル内のテキストスタイル調整 */
         .modal-title { font-size: 1.5rem; font-weight: bold; color: #333; margin-bottom: 10px; }
         .modal-datetime { font-size: 1.4rem; font-weight: bold; color: #007bff; margin: 10px 0; }
         .passcode-label { font-size: 0.9rem; color: #007bff; margin-bottom: 5px; }
         .passcode-display { font-size: 2.8rem; font-weight: bold; color: #007bff; letter-spacing: 5px; margin: 10px 0; background: #fff; padding: 15px; border-radius: 15px; border: 2px dashed #007bff; }
-        
         .btn-final { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 1.1rem; cursor: pointer; margin-top: 10px; font-weight: bold; }
         .btn-send { background: #4dabf7; color: white; }
         .btn-back { background: #f1f3f5; color: #495057; }
@@ -65,14 +62,9 @@ const MAKE_URL = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z";
 const params = new URLSearchParams(location.search);
 const SLOT_ID = params.get("slot_id");
 const VOLUNTEER_ID = params.get("vid");
-const VOLUNTEER_EMAIL = params.get("v_email");
-// URLから日時情報を取得
-const DISPLAY_TIME = params.get("display_time") || "予約日時の取得に失敗しました";
+const VOLUNTEER_EMAIL = params.get("v_email"); // ここを確実に受け取る
+const DISPLAY_TIME = params.get("display_time") || "日時情報なし";
 
-let generatedPasscode = "";
-let isSuccess = false;
-
-// ページ読み込み時に日時を表示用にセット
 window.onload = () => {
     document.getElementById("display-datetime").innerText = DISPLAY_TIME;
 };
@@ -95,18 +87,20 @@ function closeModal(id) { document.getElementById(id).style.display = "none"; }
 async function finalSubmit() {
     const name = document.getElementById("restaurantName").value;
     const email = document.getElementById("restaurantEmail").value;
-    
     const btn = document.getElementById("final-submit-btn");
+    
     btn.disabled = true;
     btn.innerText = "送信中...";
 
     try {
+        // 1. Supabase更新
         await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${SLOT_ID}`, {
             method: "PATCH",
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({ booked: true, restaurant_name: name, restaurant_email: email, cancel_code: generatedPasscode })
         });
 
+        // 2. Make送信 (volunteer_emailが空でないことを確認して送信)
         await fetch(MAKE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -121,18 +115,17 @@ async function finalSubmit() {
         });
 
         closeModal('confirm-modal');
-        isSuccess = true;
         document.getElementById("result-title").innerText = "完了";
         document.getElementById("result-text").innerText = "メールを送信しました。";
         document.getElementById("result-modal").style.display = "flex";
     } catch (e) { 
-        alert("エラーが発生しました。"); 
+        alert("送信に失敗しました。"); 
         btn.disabled = false;
         btn.innerText = "予約する（パスコードをメール送信）";
     }
 }
 
-function handleResultClose() { window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}`; }
+function handleResultClose() { window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${VOLUNTEER_EMAIL}`; }
 </script>
 </body>
 </html>

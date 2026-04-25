@@ -22,27 +22,38 @@
 </head>
 <body>
 <div class="container"><h1>予約登録・確認</h1><div id="calendar"></div></div>
+
 <div id="reserve-modal" class="modal-overlay">
     <div class="modal-content">
         <span id="reserve-datetime" style="font-weight:bold; display:block; margin-bottom:15px;"></span>
         <p>この枠で予約を進めますか？</p>
-        <div style="display:flex; gap:10px;"><button class="btn btn-cancel" onclick="closeModal('reserve-modal')">戻る</button><button id="reserve-confirm-btn" class="btn btn-confirm">進む</button></div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-cancel" onclick="closeModal('reserve-modal')">戻る</button>
+            <button id="reserve-confirm-btn" class="btn btn-confirm">進む</button>
+        </div>
     </div>
 </div>
+
 <div id="cancel-modal" class="modal-overlay">
     <div class="modal-content">
         <span style="font-weight:bold; display:block; margin-bottom:15px; color: var(--danger-color);">予約キャンセル</span>
         <input type="text" id="cancel-code-input" style="width:100%; padding:10px; margin-bottom:20px;" placeholder="キャンセルコード">
-        <div style="display:flex; gap:10px;"><button class="btn btn-cancel" onclick="closeModal('cancel-modal')">閉じる</button><button id="cancel-confirm-btn" class="btn btn-danger">次へ</button></div>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-cancel" onclick="closeModal('cancel-modal')">閉じる</button>
+            <button id="cancel-confirm-btn" class="btn btn-danger">実行</button>
+        </div>
     </div>
 </div>
 
 <script>
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
+
+// URLからボランティア情報を取得
 const urlParams = new URLSearchParams(window.location.search);
 const VOLUNTEER_ID = urlParams.get("vid") || "A001";
-const VOLUNTEER_EMAIL = urlParams.get("v_email") || "";
+const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; 
+
 let calendar;
 
 document.addEventListener('DOMContentLoaded', function() { initCalendar(); loadEvents(); });
@@ -63,11 +74,12 @@ function initCalendar() {
             document.getElementById('reserve-modal').style.display = 'flex';
 
             document.getElementById('reserve-confirm-btn').onclick = function() {
+                // 【重要】ここでボランティアのメアド(VOLUNTEER_EMAIL)を確実に含める
                 const queryParams = new URLSearchParams({ 
                     vid: VOLUNTEER_ID, 
                     v_email: VOLUNTEER_EMAIL, 
                     slot_id: event.id,
-                    display_time: fullDisplayTime // ここで作成した日時を渡す
+                    display_time: fullDisplayTime 
                 });
                 window.location.href = `scan_select_mobile.html?${queryParams.toString()}`;
             };
@@ -77,24 +89,49 @@ function initCalendar() {
 }
 
 async function loadEvents() {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, { headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, { 
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } 
+    });
     const data = await res.json();
     calendar.removeAllEvents();
     data.forEach(item => {
         const start = item.start_time.split('+')[0];
         const end = item.end_time.split('+')[0];
-        calendar.addEvent({ id: item.id, start, end, title: item.booked ? `予約済: ${item.restaurant_name}` : "予約可能", backgroundColor: item.booked ? "#999" : "#3788d8", borderColor: item.booked ? "#999" : "#3788d8", extendedProps: { booked: item.booked, cancel_code: item.cancel_code } });
+        calendar.addEvent({ 
+            id: item.id, 
+            start, 
+            end, 
+            title: item.booked ? `予約済: ${item.restaurant_name}` : "予約可能", 
+            backgroundColor: item.booked ? "#999" : "#3788d8", 
+            borderColor: item.booked ? "#999" : "#3788d8", 
+            extendedProps: { 
+                booked: item.booked, 
+                cancel_code: item.cancel_code 
+            } 
+        });
     });
 }
+
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
 function openCancelModal(event) {
     document.getElementById('cancel-modal').style.display = 'flex';
     document.getElementById('cancel-confirm-btn').onclick = async function() {
         const code = document.getElementById('cancel-code-input').value;
         if (code === String(event.extendedProps.cancel_code)) {
-            await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, { method: "PATCH", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify({ booked: false, restaurant_name: null }) });
+            await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, { 
+                method: "PATCH", 
+                headers: { 
+                    "apikey": API_KEY, 
+                    "Authorization": `Bearer ${API_KEY}`, 
+                    "Content-Type": "application/json" 
+                }, 
+                body: JSON.stringify({ booked: false, restaurant_name: null, restaurant_email: null, cancel_code: null }) 
+            });
             location.reload();
-        } else { alert("コードが違います"); }
+        } else { 
+            alert("キャンセルコードが一致しません。"); 
+        }
     };
 }
 </script>
