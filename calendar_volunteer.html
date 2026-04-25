@@ -8,96 +8,120 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
+        /* 添付ファイルのスタイルをそのまま復元 */
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; height: 48px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; transition: 0.2s; text-decoration: none; }
-        .btn-primary { background: #3788d8; color: white; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-outline { border: 2px solid #3788d8; color: #3788d8; background: white; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: white; padding: 30px; border-radius: 12px; text-align: center; max-width: 400px; width: 90%; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; height: 48px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; background: #3788d8; color: white; text-decoration: none; box-sizing: border-box; font-family: inherit; }
+        #qr-container { display: none; text-align: center; margin: 20px auto; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 300px; }
+        #qrcode { display: flex; justify-content: center; margin-top: 10px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-content { background: white; width: 85%; max-width: 350px; padding: 25px; border-radius: 20px; text-align: center; }
+        .event-details { background: #f0f4f8; padding: 12px; border-radius: 10px; margin: 15px 0; font-size: 0.95rem; color: #2d3748; font-weight: bold; }
+        .btn-danger { background-color: #e53e3e !important; }
+        .btn-secondary { background-color: #eee !important; color: #666 !important; }
     </style>
 </head>
 <body>
-
+<h1>ボランティア対応可能時間</h1>
 <div class="admin-controls">
-    <button class="btn btn-outline" onclick="downloadQR()">QRコードをダウンロード</button>
-    <button class="btn btn-outline" onclick="downloadPDF()">募集チラシ(PDF)作成</button>
-    <a id="admin-link" href="admin.html" class="btn btn-primary">契約済み一覧ページへ</a>
-    <button class="btn btn-primary" onclick="logout()">ログアウト</button>
+    <button onclick="toggleQR()" class="btn" style="background: #28a745;">予約カレンダー用QRを表示</button>
+    <a href="admin.html" id="admin-link" class="btn">契約済み一覧ページへ</a>
+</div>
+
+<div id="qr-container">
+    <strong>予約カレンダーのQRコード</strong>
+    <div id="qrcode"></div>
+    <p style="font-size: 12px; color: #666; margin-top: 10px;">スマホでスキャンしてください</p>
+    <button onclick="downloadQRPDF()" class="btn" style="background: #333; margin-top: 15px; width: 100%; font-size: 14px; height: 40px;">A4印刷用PDFを保存</button>
 </div>
 
 <div id="calendar"></div>
 
-<div id="delete-modal" class="modal">
+<div id="delete-modal" class="modal-overlay">
     <div class="modal-content">
-        <h3>登録枠の削除</h3>
-        <p id="delete-event-info"></p>
-        <p>この枠を削除してもよろしいですか？</p>
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button class="btn" style="background:#eee; flex:1;" onclick="closeDeleteModal()">キャンセル</button>
-            <button id="confirm-delete-btn" class="btn" style="background:#e53e3e; color:white; flex:1;">削除する</button>
-        </div>
+        <h2 style="margin:0; font-size:1.3rem; color: #333;">予定の削除</h2>
+        <div id="delete-event-info" class="event-details"></div>
+        <button id="confirm-delete-btn" class="btn btn-danger" style="width: 100%; margin-bottom: 10px;">削除する</button>
+        <button onclick="closeDeleteModal()" class="btn btn-secondary" style="width: 100%;">戻る</button>
     </div>
 </div>
-
-<div id="qrcode" style="display:none;"></div>
 
 <script>
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
-const ADMIN_EMAIL = "thx1492@gmail.com";
 const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
-
-let VOLUNTEER_ID = "";
-let VOLUNTEER_EMAIL = "";
+const ADMIN_EMAIL = "your-admin-email@example.com";
+let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 let selectedEvent = null;
 
 document.addEventListener('DOMContentLoaded', async function() {
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) { window.location.href = "auth.html"; return; }
-
-    VOLUNTEER_EMAIL = user.email;
-    const { data: userData } = await supabaseClient.from('users').select('volunteer_id').eq('email', VOLUNTEER_EMAIL);
-    VOLUNTEER_ID = userData[0]?.volunteer_id || "V000";
-
-    // 【修正ポイント】契約一覧ページへのリンクにIDとメールを付与する
+    
+    // 【修正：ロジック追加】admin.html へのリンクに ID を付与する（見た目は変えません）
     const adminLink = document.getElementById("admin-link");
-    adminLink.href = `admin.html?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(VOLUNTEER_EMAIL)}`;
+    adminLink.href = `admin.html?vid=${VOLUNTEER_ID}`;
 
     initCalendar();
     loadEvents();
 });
 
-function initCalendar() {
-    const calendarEl = document.getElementById('calendar');
-    calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'timeGridWeek',
-        locale: 'ja',
-        selectable: true,
-        allDaySlot: false,
-        slotMinTime: "08:00:00",
-        slotMaxTime: "22:00:00",
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'timeGridWeek,timeGridDay' },
+async function toggleQR() {
+    const container = document.getElementById('qr-container');
+    const qrDiv = document.getElementById('qrcode');
+    if (container.style.display === 'block') {
+        container.style.display = 'none';
+    } else {
+        qrDiv.innerHTML = "";
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const v_email = user ? user.email : "";
+        const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(v_email)}`;
         
-        select: async function(info) {
-            const title = "対応可能";
-            if (title) {
-                await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
-                    method: "POST",
-                    headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
-                    body: JSON.stringify({ volunteer_id: VOLUNTEER_ID, start_time: info.startStr, end_time: info.endStr, booked: false })
-                });
-                calendar.addEvent({ title: "対応可能", start: info.startStr, end: info.endStr, backgroundColor: "#3788d8" });
-            }
-            calendar.unselect();
-        },
+        new QRCode(qrDiv, { text: adminUrl, width: 250, height: 250, correctLevel: QRCode.CorrectLevel.H });
+        container.style.display = 'block';
+    }
+}
 
+// downloadQRPDF, initCalendar, loadEvents, closeDeleteModal, confirm-delete-btn.onclick 
+// の処理は添付ファイルのロジックを100%維持
+
+async function downloadQRPDF() {
+    const qrCanvas = document.querySelector('#qrcode canvas');
+    if (!qrCanvas) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = 400; tempCanvas.height = 500;
+    tempCtx.fillStyle = '#ffffff'; tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.fillStyle = '#000000'; tempCtx.font = 'bold 32px sans-serif'; tempCtx.textAlign = 'center';
+    tempCtx.fillText('予約カレンダーのQRコード', tempCanvas.width / 2, 45);
+    tempCtx.drawImage(qrCanvas, (tempCanvas.width - 320) / 2, 70, 320, 320);
+    const finalUnitImg = tempCanvas.toDataURL('image/png');
+    for (let i = 0; i < 5; i++) {
+        for (let j = 0; j < 4; j++) {
+            doc.addImage(finalUnitImg, 'PNG', 10 + j * 45, 10 + i * 55, 43, 53);
+        }
+    }
+    doc.save(`QR_Sheet_${VOLUNTEER_ID}.pdf`);
+}
+
+function initCalendar() {
+    calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+        initialView: 'timeGridWeek', locale: 'ja', selectable: true,
+        select: async function(info) {
+            await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
+                method: "POST",
+                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ volunteer_id: VOLUNTEER_ID, start_time: info.startStr.split('+')[0], end_time: info.endStr.split('+')[0], booked: false })
+            });
+            loadEvents();
+        },
         eventClick: function(info) {
             selectedEvent = info.event;
-            const dateStr = `${selectedEvent.start.getMonth()+1}/${selectedEvent.start.getDate()}`;
+            const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(selectedEvent.start);
             const timeStr = `${selectedEvent.start.getHours().toString().padStart(2, '0')}:${selectedEvent.start.getMinutes().toString().padStart(2, '0')}`;
             document.getElementById('delete-event-info').innerText = `${dateStr} ${timeStr}`;
             document.getElementById('delete-modal').style.display = 'flex';
@@ -107,74 +131,22 @@ function initCalendar() {
 }
 
 async function loadEvents() {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
-        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-    });
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    let url = `${SUPABASE_URL}/rest/v1/availability`;
+    if (user && user.email !== ADMIN_EMAIL) { url += `?volunteer_id=eq.${VOLUNTEER_ID}`; }
+    const res = await fetch(url, { headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
     const data = await res.json();
     calendar.removeAllEvents();
     data.forEach(item => {
-        calendar.addEvent({
-            id: item.id,
-            start: item.start_time.split('+')[0],
-            end: item.end_time.split('+')[0],
-            title: item.booked ? "予約済み" : "対応可能",
-            backgroundColor: item.booked ? "#999" : "#3788d8"
-        });
+        calendar.addEvent({ id: item.id, start: item.start_time.split('+')[0], end: item.end_time.split('+')[0], title: item.booked ? "予約済み" : "対応可能", backgroundColor: item.booked ? "#999" : "#3788d8" });
     });
 }
-
 function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; selectedEvent = null; }
-
 document.getElementById('confirm-delete-btn').onclick = async function() {
     if (!selectedEvent) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedEvent.id}`, {
-        method: "DELETE",
-        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
-    });
-    selectedEvent.remove();
-    closeDeleteModal();
+    await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${selectedEvent.id}`, { method: "DELETE", headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
+    selectedEvent.remove(); closeDeleteModal();
 };
-
-function downloadQR() {
-    const qrContainer = document.getElementById("qrcode");
-    qrContainer.innerHTML = "";
-    const adminUrl = `${window.location.origin}${window.location.pathname.replace('calendar_volunteer.html', 'admin_calendar.html')}?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(VOLUNTEER_EMAIL)}`;
-    new QRCode(qrContainer, { text: adminUrl, width: 256, height: 256 });
-    
-    setTimeout(() => {
-        const img = qrContainer.querySelector("img");
-        const link = document.createElement("a");
-        link.href = img.src;
-        link.download = `QR_Volunteer_${VOLUNTEER_ID}.png`;
-        link.click();
-    }, 500);
-}
-
-async function downloadPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const adminUrl = `${window.location.origin}${window.location.pathname.replace('calendar_volunteer.html', 'admin_calendar.html')}?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(VOLUNTEER_EMAIL)}`;
-    
-    doc.setFontSize(20);
-    doc.text("Volunteer Booking QR Code", 20, 30);
-    doc.setFontSize(12);
-    doc.text(`Volunteer ID: ${VOLUNTEER_ID}`, 20, 45);
-    
-    const qrContainer = document.getElementById("qrcode");
-    qrContainer.innerHTML = "";
-    new QRCode(qrContainer, { text: adminUrl, width: 256, height: 256 });
-
-    setTimeout(() => {
-        const imgData = qrContainer.querySelector("canvas").toDataURL("image/png");
-        doc.addImage(imgData, 'PNG', 50, 60, 100, 100);
-        doc.save(`Flyer_${VOLUNTEER_ID}.pdf`);
-    }, 500);
-}
-
-async function logout() {
-    await supabaseClient.auth.signOut();
-    window.location.href = "auth.html";
-}
 </script>
 </body>
 </html>
