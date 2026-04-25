@@ -14,10 +14,23 @@
         .fc { font-size: 10px !important; height: 80vh !important; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
         .modal-content { background: white; padding: 25px; border-radius: 15px; width: 85%; max-width: 320px; text-align: center; }
-        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; flex: 1; }
+        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; flex: 1; font-size: 14px; }
         .btn-confirm { background: var(--primary-color); color: white; }
         .btn-cancel { background: #eee; color: #333; }
         .btn-danger { background: var(--danger-color); color: white; }
+        
+        /* 入力欄の不格好さを解消するスタイル */
+        .cancel-input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 0 auto 20px auto; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            box-sizing: border-box; /* 幅を枠内に収める */
+            display: block;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -37,10 +50,10 @@
 <div id="cancel-modal" class="modal-overlay">
     <div class="modal-content">
         <span style="font-weight:bold; display:block; margin-bottom:15px; color: var(--danger-color);">予約キャンセル</span>
-        <input type="text" id="cancel-code-input" style="width:100%; padding:10px; margin-bottom:20px;" placeholder="キャンセルコード">
+        <input type="text" id="cancel-code-input" class="cancel-input" placeholder="キャンセルコードを入力">
         <div style="display:flex; gap:10px;">
             <button class="btn btn-cancel" onclick="closeModal('cancel-modal')">閉じる</button>
-            <button id="cancel-confirm-btn" class="btn btn-danger">実行</button>
+            <button id="cancel-confirm-btn" class="btn btn-danger">キャンセル</button>
         </div>
     </div>
 </div>
@@ -49,10 +62,9 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// URLからQRコードに含まれていた情報を取得
 const urlParams = new URLSearchParams(window.location.search);
-const VOLUNTEER_ID = urlParams.get("vid") || "";
-const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; // ここでメアドを取得
+const VOLUNTEER_ID = urlParams.get("vid") || "A001";
+const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; 
 
 let calendar;
 
@@ -65,7 +77,6 @@ function initCalendar() {
             const event = info.event;
             if (event.extendedProps.booked) { openCancelModal(event); return; }
 
-            // 1. 日時表示用のテキスト作成
             const start = event.start;
             const end = event.end;
             const dateStr = `${start.getMonth() + 1}/${start.getDate()}(${['日','月','火','水','木','金','土'][start.getDay()]})`;
@@ -76,14 +87,13 @@ function initCalendar() {
             document.getElementById('reserve-modal').style.display = 'flex';
 
             document.getElementById('reserve-confirm-btn').onclick = function() {
-                // 2. 次の画面へ渡すURLを構築 (ここが最重要)
-                const nextUrl = new URL('scan_select_mobile.html', window.location.origin + window.location.pathname.replace('admin_calendar.html', ''));
-                nextUrl.searchParams.set('vid', VOLUNTEER_ID);
-                nextUrl.searchParams.set('v_email', VOLUNTEER_EMAIL); // これを確実に乗せる
-                nextUrl.searchParams.set('slot_id', event.id);
-                nextUrl.searchParams.set('display_time', fullDisplayTime);
-
-                window.location.href = nextUrl.toString();
+                const queryParams = new URLSearchParams({ 
+                    vid: VOLUNTEER_ID, 
+                    v_email: VOLUNTEER_EMAIL, 
+                    slot_id: event.id,
+                    display_time: fullDisplayTime 
+                });
+                window.location.href = `scan_select_mobile.html?${queryParams.toString()}`;
             };
         }
     });
@@ -117,6 +127,7 @@ async function loadEvents() {
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
 function openCancelModal(event) {
+    document.getElementById('cancel-code-input').value = ""; // モーダルを開くたびにクリア
     document.getElementById('cancel-modal').style.display = 'flex';
     document.getElementById('cancel-confirm-btn').onclick = async function() {
         const code = document.getElementById('cancel-code-input').value;
@@ -127,7 +138,9 @@ function openCancelModal(event) {
                 body: JSON.stringify({ booked: false, restaurant_name: null, restaurant_email: null, cancel_code: null }) 
             });
             location.reload();
-        } else { alert("コードが違います"); }
+        } else { 
+            alert("キャンセルコードが一致しません。"); 
+        }
     };
 }
 </script>
