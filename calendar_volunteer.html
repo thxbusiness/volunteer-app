@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        /* 添付ファイルのスタイルをそのまま復元 */
         body { font-family: sans-serif; margin: 20px; background-color: #f8f9fa; }
         #calendar { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .admin-controls { text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
@@ -51,7 +50,6 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 const supabaseClient = supabase.createClient(SUPABASE_URL, API_KEY);
-const ADMIN_EMAIL = "your-admin-email@example.com";
 let VOLUNTEER_ID = new URLSearchParams(location.search).get("vid") || "A001";
 let calendar;
 let selectedEvent = null;
@@ -59,11 +57,7 @@ let selectedEvent = null;
 document.addEventListener('DOMContentLoaded', async function() {
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) { window.location.href = "auth.html"; return; }
-    
-    // 【修正：ロジック追加】admin.html へのリンクに ID を付与する（見た目は変えません）
-    const adminLink = document.getElementById("admin-link");
-    adminLink.href = `admin.html?vid=${VOLUNTEER_ID}`;
-
+    document.getElementById("admin-link").href = `admin.html?vid=${VOLUNTEER_ID}`;
     initCalendar();
     loadEvents();
 });
@@ -78,27 +72,32 @@ async function toggleQR() {
         const { data: { user } } = await supabaseClient.auth.getUser();
         const v_email = user ? user.email : "";
         const adminUrl = `${window.location.origin}/admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(v_email)}`;
-        
         new QRCode(qrDiv, { text: adminUrl, width: 250, height: 250, correctLevel: QRCode.CorrectLevel.H });
         container.style.display = 'block';
     }
 }
-
-// downloadQRPDF, initCalendar, loadEvents, closeDeleteModal, confirm-delete-btn.onclick 
-// の処理は添付ファイルのロジックを100%維持
 
 async function downloadQRPDF() {
     const qrCanvas = document.querySelector('#qrcode canvas');
     if (!qrCanvas) return;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
+    
+    // PDF内の各パーツを描画するためのキャンバスを作成
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = 400; tempCanvas.height = 500;
+    
     tempCtx.fillStyle = '#ffffff'; tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-    tempCtx.fillStyle = '#000000'; tempCtx.font = 'bold 32px sans-serif'; tempCtx.textAlign = 'center';
+    tempCtx.fillStyle = '#000000'; tempCtx.font = 'bold 30px sans-serif'; tempCtx.textAlign = 'center';
+    
+    // テキストを復元
     tempCtx.fillText('予約カレンダーのQRコード', tempCanvas.width / 2, 45);
     tempCtx.drawImage(qrCanvas, (tempCanvas.width - 320) / 2, 70, 320, 320);
+    
+    tempCtx.font = '24px sans-serif';
+    tempCtx.fillText('スマホでスキャンしてください', tempCanvas.width / 2, 430);
+
     const finalUnitImg = tempCanvas.toDataURL('image/png');
     for (let i = 0; i < 5; i++) {
         for (let j = 0; j < 4; j++) {
@@ -131,10 +130,9 @@ function initCalendar() {
 }
 
 async function loadEvents() {
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    let url = `${SUPABASE_URL}/rest/v1/availability`;
-    if (user && user.email !== ADMIN_EMAIL) { url += `?volunteer_id=eq.${VOLUNTEER_ID}`; }
-    const res = await fetch(url, { headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` } });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/availability?volunteer_id=eq.${VOLUNTEER_ID}`, {
+        headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}` }
+    });
     const data = await res.json();
     calendar.removeAllEvents();
     data.forEach(item => {
