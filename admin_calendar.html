@@ -42,7 +42,7 @@ const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 const urlParams = new URLSearchParams(window.location.search);
 const VOLUNTEER_ID = urlParams.get("vid") || "A001";
-const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; // 【修正】QRからメアドを取得
+const VOLUNTEER_EMAIL = urlParams.get("v_email") || "";
 let calendar;
 
 document.addEventListener('DOMContentLoaded', function() { initCalendar(); loadEvents(); });
@@ -53,13 +53,23 @@ function initCalendar() {
         eventClick: function(info) {
             const event = info.event;
             if (event.extendedProps.booked) { openCancelModal(event); return; }
-            const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
-            const timeStr = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
-            document.getElementById('reserve-datetime').innerText = `${dateStr} ${timeStr}`;
+
+            // 表示用の日時を作成（例：4/26(日) 10:00〜12:00）
+            const datePart = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
+            const timePart = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
+            const fullDisplayTime = `${datePart} ${timePart}`;
+
+            document.getElementById('reserve-datetime').innerText = fullDisplayTime;
             document.getElementById('reserve-modal').style.display = 'flex';
+
             document.getElementById('reserve-confirm-btn').onclick = function() {
-                const p = new URLSearchParams({ vid: VOLUNTEER_ID, v_email: VOLUNTEER_EMAIL, slot_id: event.id, start: event.startStr, end: event.endStr });
-                window.location.href = `scan_select_mobile.html?${p.toString()}`;
+                const queryParams = new URLSearchParams({ 
+                    vid: VOLUNTEER_ID, 
+                    v_email: VOLUNTEER_EMAIL, 
+                    slot_id: event.id,
+                    display_time: fullDisplayTime // ここで作成した日時を渡す
+                });
+                window.location.href = `scan_select_mobile.html?${queryParams.toString()}`;
             };
         }
     });

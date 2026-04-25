@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>予約最終確認</title>
     <style>
-        /* 旧ファイルのデザインをそのまま復元 */
         body { font-family: sans-serif; margin: 0; padding: 20px; background: #f4f7f6; color: #333; }
         .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 500px; margin: auto; }
         h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
@@ -15,11 +14,17 @@
         #approve-btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
         #approve-btn:disabled { background: #ccc; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
-        .modal-content { background: white; width: 85%; max-width: 350px; padding: 25px; border-radius: 20px; text-align: center; }
-        .passcode-display { font-size: 3rem; font-weight: bold; color: #e67e22; letter-spacing: 5px; margin: 20px 0; background: #fff5e6; padding: 10px; border-radius: 10px; border: 2px dashed #e67e22; }
-        .btn-final { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; margin-top: 10px; font-weight: bold; }
-        .btn-send { background: #007bff; color: white; }
-        .btn-back { background: #eee; color: #666; }
+        .modal-content { background: white; width: 90%; max-width: 400px; padding: 25px; border-radius: 20px; text-align: center; }
+        
+        /* モーダル内のテキストスタイル調整 */
+        .modal-title { font-size: 1.5rem; font-weight: bold; color: #333; margin-bottom: 10px; }
+        .modal-datetime { font-size: 1.4rem; font-weight: bold; color: #007bff; margin: 10px 0; }
+        .passcode-label { font-size: 0.9rem; color: #007bff; margin-bottom: 5px; }
+        .passcode-display { font-size: 2.8rem; font-weight: bold; color: #007bff; letter-spacing: 5px; margin: 10px 0; background: #fff; padding: 15px; border-radius: 15px; border: 2px dashed #007bff; }
+        
+        .btn-final { width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 1.1rem; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        .btn-send { background: #4dabf7; color: white; }
+        .btn-back { background: #f1f3f5; color: #495057; }
     </style>
 </head>
 <body>
@@ -39,10 +44,12 @@
 
 <div id="confirm-modal" class="modal-overlay">
     <div class="modal-content">
-        <h2>最終確認</h2>
+        <div class="modal-title">最終確認</div>
+        <div id="display-datetime" class="modal-datetime">--/-- 00:00〜00:00</div>
+        <div class="passcode-label">予約キャンセル用パスコード</div>
         <div id="passcode-val" class="passcode-display">0000</div>
-        <button id="final-submit-btn" class="btn-final btn-send" onclick="finalSubmit()">送信（メールを飛ばす）</button>
-        <button class="btn-final btn-back" onclick="closeModal('confirm-modal')">修正する</button>
+        <button id="final-submit-btn" class="btn-final btn-send" onclick="finalSubmit()">予約する（パスコードをメール送信）</button>
+        <button class="btn-final btn-back" onclick="closeModal('confirm-modal')">戻る</button>
     </div>
 </div>
 
@@ -58,10 +65,17 @@ const MAKE_URL = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z";
 const params = new URLSearchParams(location.search);
 const SLOT_ID = params.get("slot_id");
 const VOLUNTEER_ID = params.get("vid");
-const VOLUNTEER_EMAIL = params.get("v_email"); // Make送信用の重要データ
+const VOLUNTEER_EMAIL = params.get("v_email");
+// URLから日時情報を取得
+const DISPLAY_TIME = params.get("display_time") || "予約日時の取得に失敗しました";
 
 let generatedPasscode = "";
 let isSuccess = false;
+
+// ページ読み込み時に日時を表示用にセット
+window.onload = () => {
+    document.getElementById("display-datetime").innerText = DISPLAY_TIME;
+};
 
 function validate() {
     const name = document.getElementById("restaurantName").value.trim();
@@ -82,20 +96,17 @@ async function finalSubmit() {
     const name = document.getElementById("restaurantName").value;
     const email = document.getElementById("restaurantEmail").value;
     
-    // ボタン連打防止
     const btn = document.getElementById("final-submit-btn");
     btn.disabled = true;
     btn.innerText = "送信中...";
 
     try {
-        // Supabase更新
         await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${SLOT_ID}`, {
             method: "PATCH",
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({ booked: true, restaurant_name: name, restaurant_email: email, cancel_code: generatedPasscode })
         });
 
-        // Make送信 (volunteer_emailを含めるロジックを保持)
         await fetch(MAKE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -117,7 +128,7 @@ async function finalSubmit() {
     } catch (e) { 
         alert("エラーが発生しました。"); 
         btn.disabled = false;
-        btn.innerText = "送信（メールを飛ばす）";
+        btn.innerText = "予約する（パスコードをメール送信）";
     }
 }
 
