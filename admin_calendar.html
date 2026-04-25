@@ -49,10 +49,10 @@
 const SUPABASE_URL = "https://smoqrovdeegbacvqmaoe.supabase.co";
 const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtb3Fyb3ZkZWVnYmFjdnFtYW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMzY4MzQsImV4cCI6MjA5MDcxMjgzNH0.66uW0V_IolQiW0Bi1knO5wX5oOBdOfPEcxLdR3ubHjs";
 
-// URLからボランティア情報を取得
+// URLからQRコードに含まれていた情報を取得
 const urlParams = new URLSearchParams(window.location.search);
-const VOLUNTEER_ID = urlParams.get("vid") || "A001";
-const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; 
+const VOLUNTEER_ID = urlParams.get("vid") || "";
+const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; // ここでメアドを取得
 
 let calendar;
 
@@ -65,23 +65,25 @@ function initCalendar() {
             const event = info.event;
             if (event.extendedProps.booked) { openCancelModal(event); return; }
 
-            // 表示用の日時を作成（例：4/26(日) 10:00〜12:00）
-            const datePart = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(event.start);
-            const timePart = `${event.start.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${event.end.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
-            const fullDisplayTime = `${datePart} ${timePart}`;
+            // 1. 日時表示用のテキスト作成
+            const start = event.start;
+            const end = event.end;
+            const dateStr = `${start.getMonth() + 1}/${start.getDate()}(${['日','月','火','水','木','金','土'][start.getDay()]})`;
+            const timeStr = `${start.getHours()}:${String(start.getMinutes()).padStart(2, '0')}〜${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`;
+            const fullDisplayTime = `${dateStr} ${timeStr}`;
 
             document.getElementById('reserve-datetime').innerText = fullDisplayTime;
             document.getElementById('reserve-modal').style.display = 'flex';
 
             document.getElementById('reserve-confirm-btn').onclick = function() {
-                // 【重要】ここでボランティアのメアド(VOLUNTEER_EMAIL)を確実に含める
-                const queryParams = new URLSearchParams({ 
-                    vid: VOLUNTEER_ID, 
-                    v_email: VOLUNTEER_EMAIL, 
-                    slot_id: event.id,
-                    display_time: fullDisplayTime 
-                });
-                window.location.href = `scan_select_mobile.html?${queryParams.toString()}`;
+                // 2. 次の画面へ渡すURLを構築 (ここが最重要)
+                const nextUrl = new URL('scan_select_mobile.html', window.location.origin + window.location.pathname.replace('admin_calendar.html', ''));
+                nextUrl.searchParams.set('vid', VOLUNTEER_ID);
+                nextUrl.searchParams.set('v_email', VOLUNTEER_EMAIL); // これを確実に乗せる
+                nextUrl.searchParams.set('slot_id', event.id);
+                nextUrl.searchParams.set('display_time', fullDisplayTime);
+
+                window.location.href = nextUrl.toString();
             };
         }
     });
@@ -121,17 +123,11 @@ function openCancelModal(event) {
         if (code === String(event.extendedProps.cancel_code)) {
             await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${event.id}`, { 
                 method: "PATCH", 
-                headers: { 
-                    "apikey": API_KEY, 
-                    "Authorization": `Bearer ${API_KEY}`, 
-                    "Content-Type": "application/json" 
-                }, 
+                headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" }, 
                 body: JSON.stringify({ booked: false, restaurant_name: null, restaurant_email: null, cancel_code: null }) 
             });
             location.reload();
-        } else { 
-            alert("キャンセルコードが一致しません。"); 
-        }
+        } else { alert("コードが違います"); }
     };
 }
 </script>
