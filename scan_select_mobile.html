@@ -97,7 +97,7 @@ async function finalSubmit() {
         await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${SLOT_ID}`, {
             method: "PATCH",
             headers: { "apikey": API_KEY, "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ booked: true, restaurant_name: name, restaurant_email: email, cancel_code: generatedPasscode })
+            body: JSON.stringify({ booked: true, restaurant_name: name, restaurant_email: email, volunteer_email: VOLUNTEER_EMAIL, cancel_code: generatedPasscode })
         });
 
         // 2. Make送信 (volunteer_emailが空でないことを確認して送信)
