@@ -82,22 +82,15 @@ async function downloadQRPDF() {
     if (!qrCanvas) return;
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
-    
-    // PDF内の各パーツを描画するためのキャンバスを作成
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = 400; tempCanvas.height = 500;
-    
     tempCtx.fillStyle = '#ffffff'; tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
     tempCtx.fillStyle = '#000000'; tempCtx.font = 'bold 30px sans-serif'; tempCtx.textAlign = 'center';
-    
-    // テキストを復元
     tempCtx.fillText('予約カレンダーのQRコード', tempCanvas.width / 2, 45);
     tempCtx.drawImage(qrCanvas, (tempCanvas.width - 320) / 2, 70, 320, 320);
-    
     tempCtx.font = '24px sans-serif';
     tempCtx.fillText('スマホでスキャンしてください', tempCanvas.width / 2, 430);
-
     const finalUnitImg = tempCanvas.toDataURL('image/png');
     for (let i = 0; i < 5; i++) {
         for (let j = 0; j < 4; j++) {
@@ -107,10 +100,31 @@ async function downloadQRPDF() {
     doc.save(`QR_Sheet_${VOLUNTEER_ID}.pdf`);
 }
 
+// データベース更新用の共通関数
+async function updateEventTime(info) {
+    await fetch(`${SUPABASE_URL}/rest/v1/availability?id=eq.${info.event.id}`, {
+        method: "PATCH",
+        headers: { 
+            "apikey": API_KEY, 
+            "Authorization": `Bearer ${API_KEY}`, 
+            "Content-Type": "application/json" 
+        },
+        body: JSON.stringify({ 
+            start_time: info.event.startStr.split('+')[0], 
+            end_time: info.event.endStr.split('+')[0] 
+        })
+    });
+}
+
 function initCalendar() {
     calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-        initialView: 'timeGridWeek', locale: 'ja', selectable: true, editable: true,   
+        initialView: 'timeGridWeek', 
+        locale: 'ja', 
+        selectable: true,
+        editable: true,           // ドラッグ＆リサイズを有効化
         eventResourceEditable: true,
+        
+        // 枠を新しく作った時
         select: async function(info) {
             await fetch(`${SUPABASE_URL}/rest/v1/availability`, {
                 method: "POST",
@@ -119,6 +133,18 @@ function initCalendar() {
             });
             loadEvents();
         },
+        
+        // ドラッグ移動が終わった時
+        eventDrop: async function(info) {
+            await updateEventTime(info);
+        },
+        
+        // リサイズ（端を伸ばした）が終わった時
+        eventResize: async function(info) {
+            await updateEventTime(info);
+        },
+
+        // クリックした時（削除用）
         eventClick: function(info) {
             selectedEvent = info.event;
             const dateStr = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(selectedEvent.start);
@@ -137,9 +163,17 @@ async function loadEvents() {
     const data = await res.json();
     calendar.removeAllEvents();
     data.forEach(item => {
-        calendar.addEvent({ id: item.id, start: item.start_time.split('+')[0], end: item.end_time.split('+')[0], title: item.booked ? "予約済み" : "対応可能", backgroundColor: item.booked ? "#999" : "#3788d8" });
+        calendar.addEvent({ 
+            id: item.id, 
+            start: item.start_time.split('+')[0], 
+            end: item.end_time.split('+')[0], 
+            title: item.booked ? "予約済み" : "対応可能", 
+            backgroundColor: item.booked ? "#999" : "#3788d8",
+            editable: !item.booked // 予約済み（グレー）の枠は動かせないように設定
+        });
     });
 }
+
 function closeDeleteModal() { document.getElementById('delete-modal').style.display = 'none'; selectedEvent = null; }
 document.getElementById('confirm-delete-btn').onclick = async function() {
     if (!selectedEvent) return;
