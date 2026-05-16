@@ -89,6 +89,12 @@ async function finalSubmit() {
     const email = document.getElementById("restaurantEmail").value;
     const btn = document.getElementById("final-submit-btn");
     
+    // 【追加】ボランティアのアドレスが空っぽなら止める
+    if (!VOLUNTEER_EMAIL || VOLUNTEER_EMAIL === "null") {
+        alert("エラー：ボランティアのメールアドレスが取得できていません。カレンダー画面からやり直してください。");
+        return;
+    }
+    
     btn.disabled = true;
     btn.innerText = "送信中...";
 
@@ -100,7 +106,7 @@ async function finalSubmit() {
             body: JSON.stringify({ booked: true, restaurant_name: name, restaurant_email: email, volunteer_email: VOLUNTEER_EMAIL, cancel_code: generatedPasscode })
         });
 
-        // 2. Make送信 (volunteer_emailが空でないことを確認して送信)
+        // 2. Make送信
         await fetch(MAKE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
