@@ -62,8 +62,11 @@ const MAKE_URL = "https://hook.eu1.make.com/pqs6sf0lw7z3gvgcj5up3vcoqv6j8a1z";
 const params = new URLSearchParams(location.search);
 const SLOT_ID = params.get("slot_id");
 const VOLUNTEER_ID = params.get("vid");
-const VOLUNTEER_EMAIL = params.get("v_email"); // ここを確実に受け取る
+const VOLUNTEER_EMAIL = params.get("v_email");
 const DISPLAY_TIME = params.get("display_time") || "日時情報なし";
+
+let generatedPasscode = "";
+let isSubmitting = false; // 二重送信防止フラグ
 
 window.onload = () => {
     document.getElementById("display-datetime").innerText = DISPLAY_TIME;
@@ -85,16 +88,19 @@ function showConfirm() {
 function closeModal(id) { document.getElementById(id).style.display = "none"; }
 
 async function finalSubmit() {
-    const name = document.getElementById("restaurantName").value;
-    const email = document.getElementById("restaurantEmail").value;
+    if (isSubmitting) return; // 送信中なら何もしない
+
+    const name = document.getElementById("restaurantName").value.trim();
+    const email = document.getElementById("restaurantEmail").value.trim();
     const btn = document.getElementById("final-submit-btn");
     
-    // 【追加】ボランティアのアドレスが空っぽなら止める
-    if (!VOLUNTEER_EMAIL || VOLUNTEER_EMAIL === "null") {
-        alert("エラー：ボランティアのメールアドレスが取得できていません。カレンダー画面からやり直してください。");
+    // 【厳格チェック】アドレスがまともな形式か確認
+    if (!VOLUNTEER_EMAIL || VOLUNTEER_EMAIL === "null" || !VOLUNTEER_EMAIL.includes('@')) {
+        alert("ボランティアのメールアドレスが正しく引き継がれていません。カレンダー画面から開き直してください。");
         return;
     }
     
+    isSubmitting = true;
     btn.disabled = true;
     btn.innerText = "送信中...";
 
@@ -116,22 +122,25 @@ async function finalSubmit() {
                 restaurant_email: email,
                 cancel_code: generatedPasscode,
                 volunteer_id: VOLUNTEER_ID,
-                volunteer_email: VOLUNTEER_EMAIL 
+                volunteer_email: VOLUNTEER_EMAIL.trim() // 余計な空白を削除して送る
             })
         });
 
         closeModal('confirm-modal');
         document.getElementById("result-title").innerText = "完了";
-        document.getElementById("result-text").innerText = "メールを送信しました。";
+        document.getElementById("result-text").innerText = "予約が完了し、メールを送信しました。";
         document.getElementById("result-modal").style.display = "flex";
     } catch (e) { 
-        alert("送信に失敗しました。"); 
+        alert("通信エラーが発生しました。"); 
+        isSubmitting = false;
         btn.disabled = false;
         btn.innerText = "予約する（パスコードをメール送信）";
     }
 }
 
-function handleResultClose() { window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${VOLUNTEER_EMAIL}`; }
+function handleResultClose() { 
+    window.location.href = `admin_calendar.html?vid=${VOLUNTEER_ID}&v_email=${encodeURIComponent(VOLUNTEER_EMAIL)}`; 
+}
 </script>
 </body>
 </html>

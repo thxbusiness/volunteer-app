@@ -18,19 +18,7 @@
         .btn-confirm { background: var(--primary-color); color: white; }
         .btn-cancel { background: #eee; color: #333; }
         .btn-danger { background: var(--danger-color); color: white; }
-        
-        /* 入力欄の不格好さを解消するスタイル */
-        .cancel-input { 
-            width: 100%; 
-            padding: 12px; 
-            margin: 0 auto 20px auto; 
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            box-sizing: border-box; /* 幅を枠内に収める */
-            display: block;
-            text-align: center;
-        }
+        .cancel-input { width: 100%; padding: 12px; margin: 0 auto 20px auto; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; display: block; text-align: center; }
     </style>
 </head>
 <body>
@@ -64,7 +52,8 @@ const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 
 const urlParams = new URLSearchParams(window.location.search);
 const VOLUNTEER_ID = urlParams.get("vid") || "A001";
-const VOLUNTEER_EMAIL = urlParams.get("v_email") || ""; 
+// メールアドレスの取得と前後の空白削除
+const VOLUNTEER_EMAIL = (urlParams.get("v_email") || "").trim(); 
 
 let calendar;
 
@@ -72,7 +61,11 @@ document.addEventListener('DOMContentLoaded', function() { initCalendar(); loadE
 
 function initCalendar() {
     calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
-        initialView: 'timeGridWeek', locale: 'ja', allDaySlot: false,
+        initialView: 'timeGridWeek', 
+        locale: 'ja', 
+        allDaySlot: false,
+        slotMinTime: "08:00:00",
+        slotMaxTime: "22:00:00",
         eventClick: function(info) {
             const event = info.event;
             if (event.extendedProps.booked) { openCancelModal(event); return; }
@@ -87,12 +80,13 @@ function initCalendar() {
             document.getElementById('reserve-modal').style.display = 'flex';
 
             document.getElementById('reserve-confirm-btn').onclick = function() {
-                const queryParams = new URLSearchParams({ 
-                    vid: VOLUNTEER_ID, 
-                    v_email: VOLUNTEER_EMAIL, 
-                    slot_id: event.id,
-                    display_time: fullDisplayTime 
-                });
+                // パラメータを安全に作成
+                const queryParams = new URLSearchParams();
+                queryParams.append("vid", VOLUNTEER_ID);
+                queryParams.append("v_email", VOLUNTEER_EMAIL);
+                queryParams.append("slot_id", event.id);
+                queryParams.append("display_time", fullDisplayTime);
+
                 window.location.href = `scan_select_mobile.html?${queryParams.toString()}`;
             };
         }
@@ -127,7 +121,7 @@ async function loadEvents() {
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
 function openCancelModal(event) {
-    document.getElementById('cancel-code-input').value = ""; // モーダルを開くたびにクリア
+    document.getElementById('cancel-code-input').value = "";
     document.getElementById('cancel-modal').style.display = 'flex';
     document.getElementById('cancel-confirm-btn').onclick = async function() {
         const code = document.getElementById('cancel-code-input').value;
